@@ -1,0 +1,35 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Prolog in Python. Introduction</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Prolog in Python. Introduction</h1><div class="toc"><ol><li><a href="#auto0">Project Development</a></li><li><a href="#auto1">Additional Resources</a></li></ol></div><div class="content"><span></span><p>As of May 2009 this web page has been updated</p><p>Someone once made the remark that there were only two kinds of programming
+languages, Lisp and all the others. At that time the primary languages like
+Fortran were much more machine centric than those of today. That is, the
+way you programmed was, although more efficient, not too different than
+how you would program in machine language. Lisp with dynamic data, automatic
+garbage collection, and the ability for a lisp program to easily create and run more lisp
+code was very much an exception.</p><p>However over time, modern languages, like Python, came to support the
+kind of features found in Lisp.
+Today, the above remark might be changed to &quot;Prolog and all the others&quot;.</p><p>The motivation for this project has been to deepen my own understanding of Prolog and
+hopefully share some of what I learn with others. The program is too slow to
+be used for any real world programming. But the ability to play with the source,
+add new features, maybe sprinkle print statements or use the trace feature when something
+is obscure is invaluable. Lots of real prolog interpretors can be found
+on the internet. Or if someone is interested, porting this code to C++ would
+increase the speed considerably.</p><h2>Project Development<a name="auto0"></a></h2><p>I developed this code from scratch several years ago through trial and
+error (lots and lots of error) and did not look at any other implementation.
+Frankly, I wanted to solve the puzzle instead of looking up the answer. But after thrashing
+around for awhile I found I did need a hint. That hint led to the use of the goal stack processed
+from a loop (function &quot;search&quot;). Once I started doing that things started to fall into place.</p><p>The program is built in three versions, each expanding on its predecessor. From the
+start I assumed that a single complete program would be too much to make work at
+one go. And also too much to explain.</p><p><a href="prolog1.html">Version one</a> contains the essential goal searching logic and storage of rules. Terms
+remain very simple.</p><p><a href="prolog2.html">Version two</a> allows nested terms which make lists possible and also supports the
+square bracket syntax for lists.</p><p><a href="prolog3.html">Version three</a> provides some arithmetic and comparison operations
+as well as the &quot;cut&quot; and &quot;fail&quot; operators.</p><h2>Additional Resources<a name="auto1"></a></h2><p>Lots of information and real Prolog interpreters (and even compilers) are available
+on the internet. A google search for &quot;prolog&quot; will get you started.</p><p>I also found the Clocksin's book &quot;Clause and Effect&quot; a delightful read. It is short,
+only about 150 pages, but contains a good introduction to Prolog and some surprising
+case studies. It is not aimed at the beginning programmer, but if you find these
+pages digestable then his book may be right for you as well. The book was a
+strong motivator for me to start this website and also tweaked my interest
+in Logic circuits and the small compiler. Clocksin presents Prolog versions of similar
+programs.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

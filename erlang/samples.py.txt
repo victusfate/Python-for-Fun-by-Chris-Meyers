@@ -1,0 +1,54 @@
+# Samples.py
+
+def factorialOld(n) :
+    ans = 1
+    while n > 1 :
+        ans = ans * n
+        n   = n - 1
+    return ans
+
+def factorial(n) :
+    if n == 0 : return 1
+    else      : return n * factorial(n-1)
+
+def factorialD(N) :
+    print "Entering", N
+    if N == 0 : Ans = 1
+    else      : Ans = N * factorialD(N-1)
+    print "Returning", N, Ans
+    return Ans
+
+def factorial2(N, ACC=1) :
+    print "Entering with", N, ACC
+    if N == 0 : return ACC
+    else      : return factorial2(N-1, ACC*N)
+
+
+
+def sum(L) :
+    if not L : return 0
+    else     : return L[0] + sum(L[1:])
+
+def suma(L, Acc=0) :
+    if not L : return Acc
+    else     : return suma(L[1:], Acc+L[0])
+
+
+def split(P, L, A=[], B=[]) :
+    if   not L : return [A,B]
+    H = L[0]                # H and T will be assigned only once
+    T = L[1:]
+    if H <= P : return split(P, T, [H]+A, B    )
+    else      : return split(P, T, A,     [H]+B)
+
+def sort(L) :
+    if not L : return []
+    H = L[0]                # H and T will be assigned only once
+    T = L[1:]
+    [A,B] = split(H,T)
+    print "Pivot %s: %s --> %s %s" % (H,T,A,B)
+    return sort(A) + [H] + sort(B)
+
+    
+
+

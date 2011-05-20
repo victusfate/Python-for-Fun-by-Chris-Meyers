@@ -1,0 +1,274 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Programming a video game</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Programming a video game</h1><div class="toc"><ol><li><a href="#auto0">The nature of game programs</a></li><li><a href="#auto1">Terminal Escape Sequences</a></li><li><a href="#auto2">Using the termios module</a></li><li><a href="#auto3">Dealing with the board and screen.</a></li><li><a href="#auto4">The game loop</a></li><li><a href="#auto5">Adding keyboard control</a></li><li><a href="#auto6">Adding more players.</a></li><li><a href="#auto7">Keeping score. Burning holes.</a></li><li><a href="#auto8">The final version for now</a></li><li><a href="#auto9">Some ideas for further exploration.</a></li></ol></div><div class="content"><span></span><p>This study concerns the development of a little video game. It's modeled on
+a game my family enjoyed in the 1980's called Lode Runner. We would sometimes
+play it by the hour, having a good time and wearing out keyboards. But Lode
+Runner, at least the version we had, assumed the cpu ran at a certain speed
+and once we had processors faster than about 8Mhz, the game was too fast to
+be played.</p><p>Lode runner consists of a vertical &quot;board&quot; containing ladders and &quot;catwalks&quot;
+between the ladders. In the original game there were about 100 different
+boards or levels, each one just a bit harder than the last. &quot;You&quot; were
+represented by a little person going up and down the ladders and running
+across the catwalks gathering the &quot;lodes&quot; of treasure. You used the arrow
+keys to indicate a change of direction. While doing this you were pursued
+by what I always thought of as robots. You won a level by retrieving
+all the lodes and getting to the top of the board before being tagged by a robot.
+You had one weapon at your disposal. You could burn a hole in a catwalk
+that a robot would fall into and get stuck. The robot would take a couple
+of seconds to get back out. And in a few seconds more the catwalk would
+self repair. If you fell into the hole you couldn't get out and with
+the repair tragedy was the result.</p><p>We are going to develop a game quite similar, using simplified graphics
+and keyboard input. The code only works for Linux and Python 2.0 or newer.
+This is because of the ansii escape sequences we'll use to display the
+game on the screen and the special termio module for monitoring the
+keyboard.</p><h2>The nature of game programs<a name="auto0"></a></h2><p>Game programs, actually games in general whether Lode Runner or Chess,
+have a certain structure. A game is a set of moves. There
+must be a way to visualize the game in progress (screen), a way to get
+input from the player(s), rules that determine what moves are possible and
+to determine when the game is over.</p><p>At the center of any game program is the &quot;game loop&quot; that repeatably
+performs the above steps until the game is terminated, that is, won,
+lost or otherwise interrupted.</p><p>Moves in chess require each player to examine the board, decide on the best
+next move and take it. Moves in Lode Runner are a little more dynamic.
+Each player (you and the robots) must be advanced one position and each
+player must have the opportunity to change direction. A certain time should
+elapse between moves so that you, the human, can keep up. Finally, it needs
+to be determined when the game is over. This will happen if a robot tags
+you or, as we'll see, if you fall off the board. You will have won if you
+gathered all the lodes before this happens.</p><p>We will build the program in stages so we can concentrate one aspect at a
+time. We'll start with some unusual I/O to the terminal.</p><h2>Terminal Escape Sequences<a name="auto1"></a></h2><p>Each character in the Ascii character set has a numeric value. You can use
+the &quot;ord&quot; function to find out what that value is.</p><pre class="python-interpreter">
+&gt;&gt;&gt; ord('A')
+65
+</pre><p>The reverse of the &quot;ord&quot; function is &quot;chr&quot;. It will turn a numeric value
+from 0 to 255 into the corresponding character.</p><pre class="python-interpreter">
+&gt;&gt;&gt; chr(65)
+'A'
+</pre><p>Some characters do not display and in order to represent them in a Python
+string they must be quoted with the &quot;\&quot; and an octal (base 8) number. The
+escape key (ESC) has a numeric value of 27 decimal. In a Python string
+it looks like</p><pre class="python-interpreter">
+&gt;&gt;&gt; chr(27)
+'\033'
+</pre><p>You may be used to using ESC in Vim editor to slip out of insert mode. It
+is also the basis for escape sequences that do special things. Try this.</p><pre class="python-interpreter">
+&gt;&gt;&gt; print &quot;\033[1;1H\033[JHello World&quot;
+</pre><p>Your screen or window should have erased and then printed &quot;Hello World&quot; in the top
+left corner, and leaving a new &quot;&gt;&gt;&gt;&quot; prompt on the second line.</p><p>There are two escape sequences in the above string. &quot;\033[1;1H&quot; positions the
+cursor to row one and column one. The &quot;1;1&quot; may be replaced with other
+numbers. &quot;\033[J&quot; will erase the screen from the current cursor position.</p><p>Escape sequences are also used from the keyboard for function keys and
+the four arrow keys. The up arrow generates a string &quot;\033[A&quot;, the down
+key &quot;\033[B&quot;, the right key &quot;\033[C&quot; and the left key &quot;\033[D&quot;. However
+you need to be in a special terminal mode to see the character sequence
+faithfully reproduced.</p><h2>Using the termios module<a name="auto2"></a></h2><p>We have two problems with the keyboard in a arcade-like game. One is to
+input the arrow keys so that the program can change your direction on the fly. The
+second is a little more subtle. While waiting for you to type a key the game still
+needs to keep going. If you use input functions like <code>input</code> or 
+<code>raw_input</code>
+then you know that the program stops until you input a string followed
+by the return key. That won't work here.</p><p>The solution, which is specific to Unix implementations, consists of
+3 parts. The first is to put the
+keyboard input into a mode called &quot;non-canonical&quot;. Canonical mode means
+that you must input an entire line before the program sees any of it. That
+allows you to edit the line as you are typing without your program having
+to worry about seeing backspace characters followed by corrections. In
+non-canonical input your program gets characters just as soon as they are typed.</p><p>The second part of the solution is to input keystrokes without the system
+trying to &quot;echo&quot; them onto the screen. An up arrow will often show on the
+screen like &quot;^[[A&quot; which we don't want to see. Our program just wants to
+deal with the fact that you pressed the up arrow.</p><p>The final part of the solution lets the program keep going whether or not
+you press a key on each move. And at 10 moves a second this is of course a
+must. The secret is to use the timeout function, but set the timeout to
+zero. This will allow us to read what is in the look ahead buffer, that
+is anything typed since the last move 1/10th second earlier.</p><p>These ideas are encapsulated in the module
+<a href="ttyLinux.py">ttyLinux.py</a>
+which you should now examine.</p><p>There are 3 functions for the keyboard input. The function &quot;setSpecial&quot;
+puts the keyboard into our non-canonical, non-echo, lookahead mode. But
+first it saves the prior settings so that the function &quot;setNormal&quot; can
+restore them. I don't want to go into detail on the &quot;termios&quot; module but,
+if you are interested, &quot;man termios&quot; will give you lots of information.
+Suffice it to say that setSpecial turns individual binary bits off in a
+flag word and sets a byte value for the timeout function. The function
+&quot;readLookAhead&quot; simply reads a maximum of three characters, enough to
+hold an arrow key escape sequence.</p><p>You should check at this time whether termios is available in your Python.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import termios
+&gt;&gt;&gt;
+</pre><p>If you don't get any error message then everything is ok. Otherwise you
+will have to rebuild and reinstall Python to include it. Briefly, you
+must edit Modules/Setup and uncomment the line containing &quot;termios&quot;. Then
+do a &quot;make&quot; from the top directory followed by a &quot;make install&quot;. If
+this means nothing to you, check with your system administrator.</p><p>Let's look at a little program to use ttyLinux.py. The program
+<a href="key1.py">key1.py</a>
+will set the terminal to our special mode, retrieve look ahead for 10 one
+second intervals and then restore the terminal to normal. Here is a
+sample run. After the import I typed the up arrow, down arrow and then the
+string &quot;this is a test of everything&quot;. You can see how it reads
+3 characters at a time.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import key1
+&gt;&gt;&gt; key1.test()
+Got ['\033[A']
+Got ['\033[B']
+Got ['thi']
+Got ['s i']
+Got ['s a']
+Got [' te']
+Got ['st ']
+Got ['of ']
+Got ['eve']
+Got ['ryt']
+&gt;&gt;&gt;
+</pre><p>There is a problem with key1.py which is annoying. If the loop doesn't complete
+for any reason and ttyLinux.setNormal() is not called (say you typed a
+control-C) then your terminal is left in the special state even though control
+has returned to Python or to the shell. You can still issue commands, they
+just don't echo. Nor can you correct mistakes. One way out is to get to the shell
+and &quot;exit&quot; to the login prompt. A new login will reset the terminal characteristics.</p><p>But a better way to do this can be found in
+<a href="key2.py">key2.py</a>
+and this is the model
+we'll use in the game program. Here we use a try/finally clause (no except)
+to guarentee that setNormal() is called whether or not the call to loop()
+completes normally. Without an &quot;except&quot; clause we still get any traceback
+messages.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import key2
+&gt;&gt;&gt; key2.test()
+Got ['\033[A']
+Got ['\033[B']   (Control-C typed here)
+Traceback (most recent call last):
+File &quot;stdin&quot;, line 1, in ?
+File &quot;key2.py&quot;, line 14, in test
+loop()
+File &quot;key2.py&quot;, line 7, in loop
+time.sleep(1)
+KeyboardInterrupt
+&gt;&gt;&gt; # The keyboard still works fine!
+</pre><h2>Dealing with the board and screen.<a name="auto3"></a></h2><p>The module
+<a href="boards.py">boards.py</a>
+contains our board as a list of python strings, each
+string representing one row on the screen. This format
+is convenient for two reasons. One, it is easy to edit the board since
+the rows are aligned vertically and, two, reading the board into the
+program is done by simply importing the module. If you want to edit the
+board with &quot;vi&quot; or &quot;vim&quot;, use the &quot;R&quot; command to get into &quot;replace&quot; mode.
+Within the strings '_' are catwalks, '|' are ladders and '*' are the lodes
+of treasure. The players are not represented on the initial board.</p><p>The list &quot;boards&quot; references board0 in a single item. This is meant to
+leave room for expansion to allow you to have several boards and let the
+game switch between them. In the traditional Lode Runner game winning at
+one level automatically advanced you to the next.</p><p>The module
+<a href="util.py">util.py</a>
+has some functions to automatically handle the board
+and the screen so that the main game program does not have to worry about
+petty details. The function setBoard sets the global &quot;board&quot; to a fresh
+copy of the nth board in the module boards. The next two functions let us
+read and write a single spot in the board. The try/except clauses keep out of
+bounds references from crashing the program.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import util
+&gt;&gt;&gt; util.getSpot(13,38)
+'|'
+&gt;&gt;&gt; util.setSpot(13,38,'X')
+&gt;&gt;&gt; util.writeBoard()
+                             __*___|_
+                       |           |
+                       |           |
+                      _|__*________|______*___
+                       |           |
+               ___*____|___________|_
+                       |           |
+                       |           |
+                       |           |
+ ____*_________________|___________X______*____
+&gt;&gt;&gt;
+</pre><p>Our call to util.setSpot changed a single character on the board.</p><p>Notice that the function writeBoard uses the escape sequence to erase
+the screen followed by a function writeScreen to position the cursor at
+each line and then write the characters for that line. This is followed
+by a &quot;flush&quot; call which guarentees the output is not cached in memory but
+rather output immediately. Without the flush the game can be quite
+jerky.</p><p>The function writeScreen will also be used in the game program to move
+the players on the screen. For example, if you, (represented by &quot;^&quot;), are on a
+catwalk and are to move one column to the right, we use writeScreen once
+to place a &quot;_&quot; where you currently are and then again to place a &quot;^&quot; at
+your new location, one position to the right.</p><h2>The game loop<a name="auto4"></a></h2><p><a href="lode1.py">(lode1.py)</a>
+is the first of five programs on our way to making a real
+computer game.</p><p>We first import everything from the util module which, in turn, imports the
+board. We also import the time module for its sleep function. We'll have
+a single player represented by the '^' character which simply moves
+according to where it is sitting on the board. In open air (' ') it falls
+down (and to a higher row), on a catwalk ('_') it moves to the right and
+finally, on a ladder ('|') it climbs up. In between each move the program
+pauses for .1 second. Just before pausing the program calls writeScreen(20,0,'')
+to simply get the cursor out of the picture.</p><p>Make sure you have ttyLinux.py, util.py and lode1.py. Run the program with</p><pre class="python-interpreter">
+&gt;&gt;&gt; import lode1
+&gt;&gt;&gt; lode1.main()
+</pre><p>The board appears on the screen and a couple of seconds later &quot;^&quot; appears
+falling to the catwalk, moving to the right, and climbing the ladder. You
+will need to press contol-C to stop the program.</p><h2>Adding keyboard control<a name="auto5"></a></h2><p>One problem with lode1.py is that information about You is contained in
+variables 'row' and 'col'. If we have multiple players we need to do better.</p><p>A great approach is to have an object (instance of a class) represent each
+player. Each object can remember not only row and column but also lots of
+other information and with Python this can be very open-ended.</p><p>With
+<a href="lode2.py">lode2.py</a>
+we define a class &quot;You&quot; which has attributes for the above
+as well as the direction you want to travel. A method &quot;setDirection&quot;
+uses the latest keyboard input available (keys) and sets your direction
+accordingly. Notice that direction is contained in a 2 value tuple with
+horizontal and vertical components.</p><p>A separate method &quot;move&quot; is used to change your location on the screen. You
+can't always move in the direction you want. In free space you fall. On
+a ladder you can only go up or down, on a catwalk left or right. Later
+we'll fix that so that you can transfer onto ladders from catwalks and
+vice versa.</p><p>The main function is the try/finally clause discussed earlier in the program
+key2.py. The game loop is in the function playGame.</p><p>Run the program. You will fall to the catwalk and stop. A right arrow
+starts you to the right but you stop at the ladder. An up arrow climbs
+and finally a control-C will exit.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import lode2
+&gt;&gt;&gt; lode2.main()
+</pre><h2>Adding more players.<a name="auto6"></a></h2><p>The next version
+<a href="lode3.py">lode3.py</a>
+adds a robot to play against you. Since it
+makes sense to have &quot;you&quot; as a class instance it makes just as much sense
+to do the same for the robot. In fact both you and the robot can share the
+same &quot;move&quot; method. So let's use inheritance to have a superclass &quot;Player&quot;
+and subclasses &quot;You&quot; and &quot;Robot&quot;.</p><p>This game, even though not complete, is fun to play. Let's look closely at
+the robots setDirection method which is where most of the new code resides.</p><p>The global &quot;inPlay&quot; is true if the game is still going. If the robot sees
+that he has tagged you then &quot;inPlay&quot; is set to false. Next the robot checks
+to see you are on the same level and runs towards you if so. If the robot
+finds itself on a ladder, it attempts to match your vertical location.</p><p>This strategy works pretty well on this board, even though it is quite
+simple.  If you make more complex boards you will find the robots overly
+challenged and may want to program in some additional &quot;smarts&quot;.</p><p>The move method in the Player class also has an addition. The use of variables
+lspot and rspot (for left/right) enable both &quot;you&quot; and the robot to
+transfer to and from ladders and catwalks.</p><p>Finally there is a variable &quot;clock&quot; which just keeps track of howmany
+moves have taken place. It is used in this version to give you a 4 second
+(40 moves) head start before the robot is created and comes after you.
+However the availability of a clock can greatly enhance what you can do with the
+game.</p><h2>Keeping score. Burning holes.<a name="auto7"></a></h2><p>Our next version
+<a href="lode4.py">lode4.py</a>
+adds score keeping and a defense mechanism against the
+robot. Score is kept as an attribute of &quot;you&quot; and ten points are added
+each time you pass over a lode ('*'). The lode is then erased from both
+the screen and the board. Just before taking its .1 second nap the program
+writes the score to the screen in lower left corner where it moved to
+get the cursor out of the way.</p><p>The defense mechanism lets you burn a hole in the catwalk, either to your
+left (&quot;a&quot; key) or right (&quot;s&quot; key). The idea is that you'll work the arrow
+keys with your right hand and the 'a' and 's' keys with your left. These
+holes don't repair themselves and the robot and you fall through them to
+the next level down or off the screen. Your falling off the screen ends the
+game.</p><h2>The final version for now<a name="auto8"></a></h2><p>Our last version of the game will demonstrate a couple of possible ways to
+extend the game.</p><p><a href="lode5.py">lode5.py</a>
+will create 2 robots to chase you. The list &quot;players&quot; keeps
+track of &quot;you&quot; and whenever its length is under 3 it adds a robot. You
+can kill a robot by making it fall through the lowest catwalk. When
+a robot sees that it is dead it politely removes itself from the
+&quot;players&quot; list. But once that happens the list length is less than 3 and
+a new robot drops from the top at a random column (look for &quot;random&quot;
+in the code).</p><p>Because this game is a little too challenging (for me anyway)
+I also made the robots move at half speed. This is done by having a Robot.move
+method that calls Player.move every other time, when &quot;clock%2 == 0&quot;</p><h2>Some ideas for further exploration.<a name="auto9"></a></h2><p>The best thing about programing your own games is that you can extend them
+any way you want, at least if you can figure out how. Here are a just
+a few ideas.</p><dl><dd>Play around with the speed of the game (time.sleep) and the number
+of robots. Let the user control some of this on starting the game.
+Level=easy</dd><dd>Make more boards and add them to the boards list. Create a mechanism
+to have the program advance a level when you win or let you choose a
+level. Level=easy</dd><dd>Change the rules. Perhaps instead of burning holes drop a &quot;stun bomb&quot;
+that stuns a robot for a few seconds keeping it from moving. Level=medium</dd><dd>Make the robots more intelligent, keeping track of the last ladder
+used by &quot;you&quot; and heading toward it when other options fail. Level=medium</dd><dd>The game &quot;PacMan&quot; is actually quite similar. Use this code as
+a basis for a PacMan like game. Level=medium</dd><dd>Make &quot;you&quot; an automatic player like the robots. You must avoid the
+robots and try to reach treasure. Level=hard</dd><dd>Make the game for two &quot;You&quot; players running on autopilot. Each may
+use a different strategy in their setDirection method. Level=hard</dd><dd>Make the robots work cooperatively, anticipating moves of the other
+robots and your responses. Level=PhD Thesis</dd></dl><p>If you are interesting in the more challenging possibilities take a look
+at the following website.</p><p><a href="http://icfpcontest.cse.ogi.edu/task.html">http://icfpcontest.cse.ogi.edu/task.html</a></p><p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2004-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

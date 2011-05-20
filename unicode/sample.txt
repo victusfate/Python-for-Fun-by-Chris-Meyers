@@ -1,0 +1,19 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head><body><font size="6">
+
+<h3>Sample of German</h3>
+Aber bald mu-c3--9f- ich wirklich mit der Arbeit anfangen
+
+<h3>Sample of Greek</h3>
+-ce--95--ce--af--ce--bd--ce--b1--ce--b9- -ce--ad--ce--bd--ce--b1- -cf--83--cf--8d--cf--83--cf--84--ce--b7--ce--bc--ce--b1- -ce--b3--ce--b9--ce--b1- -ce--bd--ce--b1- -ce--bc--ce--b5--cf--84--cf--81--ce--ac--ce--b5--ce--b9- -ce--ba--ce--b1--ce--bd--ce--b5--ce--af--cf--82- -cf--80--cf--8c--cf--83--ce--bf- -ce--ba--ce--b1--ce--bb--ce--ae- -ce--b5--ce--af--ce--bd--ce--b1--ce--b9-
+<h3>Sample of Korean</h3>
+-ec--9e--88--ec--8a--b5--eb--8b--88--ea--b9--8c-? -ec--86--8c--ed--94--84--ed--8a--b8--ec--9b--a8--ec--96--b4- -ed--8c--80--ec--9d--b4- -ec--96--bc--eb--a7--88--eb--82--98- -ec--9e--98--ed--95--98--eb--8a--94--ec--a7--80--eb--a5--bc- -ec--9e--ac--eb--8a--94- -eb--82--98--eb--a6--84--eb--8c--80--eb--a1--9c- 
+<h3>Sample of Russian</h3>
+-d0--bf--d1--80--d0--be--d0--b4--d1--83--d0--ba--d1--82--d0--b0- -d0--b2--d1--8b- -d0--bf--d0--be--d0--bb--d1--83--d1--87--d0--b0--d0--b5--d1--82--d0--b5- -d0--bb--d1--8e--d1--81--d0--b8--d1--82--d0--be--d0--b2--d1--83--d1--8e- -d0--bd--d0--b0--d0--b4--d0--b3--d1--80--d0--be--d0--b1--d0--bd--d1--83--d1--8e- -d0--bf--d0--bb--d0--b8--d1--82--d1--83- -d1--80--d0--b0--d0--b7--d0--bc--d0--b5--d1--80--d0--be--d0--bc-
+<h3>Sample of Swedish</h3>
+Det beror p-c3--a5- att en plattform beh-c3--b6-ver tilltala utvecklare i f-c3--b6-rsta hand och inte slutanv-c3--a4-ndare. 
+
+(snippets from Joel on Software)
+</body> 

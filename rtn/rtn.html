@@ -1,0 +1,407 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Natural Language Processing</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Natural Language Processing</h1><div class="toc"><ol><li><a href="#auto0">Introduction</a></li><li><a href="#auto1">Recursive transition networks</a></li><li><a href="#auto2">Generating sentences from a grammar</a></li><li><a href="#auto3">Nested Networks</a></li><li><a href="#auto4">Python generators</a></li><li><a href="#auto5">Matching input sentences</a></li><li><a href="#auto6">The match generator</a></li><li><a href="#auto7">Retrieving the sentence structure</a></li><li><a href="#auto8">Dealing with Ambiguity</a></li><li><a href="#auto9">Parsing another language</a></li><li><a href="#auto10">Practical considerations</a></li></ol></div><div class="content"><span></span><h2>Introduction<a name="auto0"></a></h2><p>This is the first part of a multi-step project to parse and process small
+subsets of natural language. Here i part 1 we will explore the use of RTN's for representing
+grammars and Python code to both generate and parse sentences in a grammar. In part 2 we
+will match parsed sentences against a <q>Knowledge</q> base to perform sematic
+processing, that is, extract meaning from the sentence. Eventually, I hope to 
+replicate Terry Winograd's <q>Blocks World</q> which will require sentence parsing,
+extraction of meaning, goal planning, and execution of instructions.</p><p>Keeping the code as simple as possible</p><h2>Recursive transition networks<a name="auto1"></a></h2><p>Recursive transition networks (RTN) are useful devices for representing
+grammars in both human and computer languages. The kind of grammars that can
+be represented with RTN's are called context-free.  They consist of rules for
+how words may be put together into structures and, in turn, how those
+structures may be built into larger structures. For a particular grammar a
+valid <q>sentence</q> is a list of words that follow the rules of the grammar.
+We will use the word <q>sentence</q> with this more restricted meaning a lot.
+</p><p>The computer language Pascal (among others) is formally defined using RTN's.
+</p><p>Here is a very simple example. The grammar in figure 1 consists of a single
+<q>sentence</q>, the word <q>red</q> followed by the word <q>book</q>.</p><img src="fig1.png" /><p>For our purposes an alternative, but equivalent, format is more useful
+because it is easily translated into a Python dictionary. The network that
+defines this <q>sentence</q> consists
+of nodes (1, 2, END) connected by named arcs. The name of an arc indicates what 
+word(s) will carry us from one node to another, and in which direction. You
+traverse the network by starting at node 1 and finding a path to node END.</p><img src="fig2.png" /><p>And here is one way to represent the network in Python</p><pre class="python">
+<span class="py-src-variable">net1</span> = {
+ <span class="py-src-string">'sentence'</span>: {
+         <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;red&quot;</span>,  <span class="py-src-number">2</span>),    ),
+         <span class="py-src-number">2</span>: ((<span class="py-src-string">&quot;book&quot;</span>, <span class="py-src-variable">END</span>), )
+         }
+}
+</pre><p>The network &quot;sentence&quot; refers to a dictionary whose entries are the states. Each state
+(1,2..) consists of a tuple of transitions where. The word &quot;red&quot; in state 1, for example, takes
+us to state 2. The &quot;sentence&quot; network is itself inside a dictionary
+of networks (net1). Now this is, momentarily, a bit more complex than it needs to be. 
+But we're preparing the groundwork to have a family of networks working together. </p><p>So, the nodes in the network are key/value pairs in a dictionary.  The key is
+the name of the node (1,2) and the value is a list of arcs. Each arc is a two valued
+tuple describing the word and destination. The END node does not need to be
+defined since no arcs emanate from it. END is simply a defined constant.</p><p>Let's move on to a somewhat more interesting grammar. Figure 3 describes a
+grammar that consists of the word <code>book</code> preceded by one or more
+words <code>red</code>. So <code>red book</code> and
+<code>red red red book</code> are both valid sentences in the grammar.</p><img src="fig3.png" /><p>And here is the Python version.</p><pre class="python">
+<span class="py-src-variable">net2</span> = {
+ <span class="py-src-string">'sentence'</span>: {
+         <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;red&quot;</span>, <span class="py-src-number">2</span>), ),
+         <span class="py-src-number">2</span>: ((<span class="py-src-string">&quot;red&quot;</span>, <span class="py-src-number">2</span>), (<span class="py-src-string">&quot;book&quot;</span>, <span class="py-src-variable">END</span>))
+         }
+}
+</pre><h2>Generating sentences from a grammar<a name="auto2"></a></h2><p>It's easy to write a python function that will generate a random sentence in 
+a grammar. For our simple non-recursive grammars above the following function
+works well.</p><pre class="python">
+<span class="py-src-keyword">import</span> <span class="py-src-variable">random</span>
+<span class="py-src-variable">END</span>   = <span class="py-src-variable">None</span> 
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">gen1</span>(<span class="py-src-parameter">net</span>) :
+    <span class="py-src-string">&quot;Generate random sentence from simple net. Non recursive&quot;</span>
+ <span class="py-src-comment"># p points to state 1 initially. s is the sentence being build
+</span>    <span class="py-src-variable">p</span> = <span class="py-src-variable">net</span>[<span class="py-src-number">1</span>]; <span class="py-src-variable">s</span> = <span class="py-src-string">&quot;&quot;</span>
+    <span class="py-src-keyword">while</span> <span class="py-src-number">1</span> :
+        <span class="py-src-variable">choose</span> = <span class="py-src-variable">random</span>.<span class="py-src-variable">randrange</span>(<span class="py-src-variable">len</span>(<span class="py-src-variable">p</span>)) <span class="py-src-comment"># A random transition in this state</span>
+        <span class="py-src-variable">s</span> = <span class="py-src-variable">s</span> + <span class="py-src-string">&quot; &quot;</span> + <span class="py-src-variable">p</span>[<span class="py-src-variable">choose</span>][<span class="py-src-number">0</span>]        <span class="py-src-comment"># The word on the arc</span>
+        <span class="py-src-variable">next</span> = <span class="py-src-variable">p</span>[<span class="py-src-variable">choose</span>][<span class="py-src-number">1</span>]               <span class="py-src-comment"># To the next state</span>
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">next</span> == <span class="py-src-variable">END</span> : <span class="py-src-keyword">return</span> <span class="py-src-variable">s</span>
+        <span class="py-src-variable">p</span> = <span class="py-src-variable">net</span>[<span class="py-src-variable">next</span>]
+</pre><p>The variable <code>p</code> keeps track of the current node and
+<code>s</code> is the sentence as it is being built. From each node we choose
+an arc at random (line 8), add its word to the sentence (line 9) and advance to 
+the next node (line 12).  The sentence is returned when the END node is reached
+(line 11).</p><p>Let's play with this a bit. You can access code and grammar at
+<a href="rtn.py">rtn.py</a> and <a href="simple.py">simple.py</a></p><pre class="python-interpreter">
+&gt;&gt;&gt; import rtn
+&gt;&gt;&gt; import simple
+&gt;&gt;&gt; rtn.gen1(simple.net1['sentence'])
+' red book'
+&gt;&gt;&gt; rtn.gen1(simple.net1['sentence'])
+' red book'
+&gt;&gt;&gt; rtn.gen1(simple.net2['sentence'])
+' red red red book'
+&gt;&gt;&gt; rtn.gen1(simple.net2['sentence'])
+' red red book'
+</pre><p>The network <code>net1</code> always produces the same sentence, but
+<code>net2</code> generates a random number of <code>red</code> words
+preceding <code>book</code>.</p><h2>Nested Networks<a name="auto3"></a></h2><p>The following assumes a rudimentary knowledge of english grammar.
+You need to at least know the difference between nouns, prepositions, verbs and 
+adjectives. There are lots places to get this information.</p><p>Extending our simple networks to recursive networks requires just one change.
+Allow the label on an arc to reference either a word or another network. Here is an
+example of 3 simple networks <code>article</code>, <code>noun1</code> and
+<code>adjective</code> along with a recursive network <code>noun2</code>. These 
+<q>2nd order nouns</q> are optionally preceded by the word <code>the</code> or
+<code>a</code> followed by zero or more adjectives.</p><img src="fig4.png" /><p>The recursive network <code>net3</code> is defined in Python as you
+probably already suspect.  The subnetworks are defined first. </p><pre class="python">
+<span class="py-src-variable">net3</span> = {
+ <span class="py-src-string">'sentence'</span>: {
+         <span class="py-src-number">1</span>: ((<span class="py-src-string">'adjective'</span>, <span class="py-src-number">2</span>), ),
+         <span class="py-src-number">2</span>: ((<span class="py-src-string">'noun'</span>  , <span class="py-src-variable">END</span>),  )
+         },
+
+ <span class="py-src-string">'noun'</span>  : {
+         <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;book&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;table&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;top&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;cover&quot;</span>,<span class="py-src-variable">END</span>))
+         },
+
+ <span class="py-src-string">'adjective'</span>: {
+         <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;big&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;small&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;red&quot;</span>,<span class="py-src-variable">END</span>))
+         }
+}
+</pre><p>A small modification in the generator function is needed to make it work
+recursively.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">gen2</span>(<span class="py-src-parameter">network</span>, <span class="py-src-parameter">name</span>) :
+    <span class="py-src-string">&quot;Generate random sentence, allow recursive network&quot;</span>
+    <span class="py-src-variable">net</span> = <span class="py-src-variable">network</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">name</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">net</span> : <span class="py-src-keyword">return</span> <span class="py-src-variable">name</span>     <span class="py-src-comment"># terminal node</span>
+    <span class="py-src-variable">p</span> = <span class="py-src-variable">net</span>[<span class="py-src-number">1</span>]; <span class="py-src-variable">s</span> = <span class="py-src-string">&quot;&quot;</span>
+    <span class="py-src-keyword">while</span> <span class="py-src-number">1</span> :
+        <span class="py-src-variable">choose</span> = <span class="py-src-variable">random</span>.<span class="py-src-variable">randrange</span>(<span class="py-src-variable">len</span>(<span class="py-src-variable">p</span>))
+        <span class="py-src-variable">s</span> = <span class="py-src-variable">s</span> + <span class="py-src-string">&quot; &quot;</span> + <span class="py-src-variable">gen2</span>(<span class="py-src-variable">network</span>, <span class="py-src-variable">p</span>[<span class="py-src-variable">choose</span>][<span class="py-src-number">0</span>])
+        <span class="py-src-variable">next</span> = <span class="py-src-variable">p</span>[<span class="py-src-variable">choose</span>][<span class="py-src-number">1</span>]
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">next</span> == <span class="py-src-variable">END</span> : <span class="py-src-keyword">return</span> <span class="py-src-variable">s</span>
+        <span class="py-src-variable">p</span> = <span class="py-src-variable">net</span>[<span class="py-src-variable">next</span>]
+</pre><p>
+Now the <code>name</code> passed to the function may be either a word or a subnetwork.
+The fourth line checks if it refers to a network and, if not, simply returns it.
+Otherwise line 8 calls gen2 recursively to expand the subnetwork.
+Let's generate some nouns, adjectives and sentences in our tiny grammar.
+</p><pre class="python-interpreter">
+&gt;&gt;&gt; import rtn, simple
+&gt;&gt;&gt; rtn.gen2(simple.net3, &quot;noun&quot;)
+' table'
+&gt;&gt;&gt; rtn.gen2(simple.net3, &quot;noun&quot;)
+' top'
+&gt;&gt;&gt; rtn.gen2(simple.net3, &quot;adjective&quot;)
+' big'
+&gt;&gt;&gt; rtn.gen2(simple.net3, &quot;adjective&quot;)
+' small'
+&gt;&gt;&gt; rtn.gen2(simple.net3, &quot;sentence&quot;)
+'  big   table'
+&gt;&gt;&gt; rtn.gen2(simple.net3, &quot;sentence&quot;)
+'  red   book'
+&gt;&gt;&gt; 
+</pre><p>Now suppose that instead of generating a random sentence, we want to
+generate all possible sentences in a grammar. We can do this because our little 
+grammar still finite.</p><p>But is there an easy way to generate all sentences in a grammar?  This
+brings us to a new topic</p><h2>Python generators<a name="auto4"></a></h2><p>Generators are new to Python 2.2. You may think of them as functions that
+return multiple values one at a time to the caller, but maintaining their
+internal state (where they are and the value of local variables) between calls. 
+They are very convenient when used with a <q>for</q> loop.</p><p>Here's a very simple example</p><pre class="python-interpreter">
+&gt;&gt;&gt; def gg() :
+...     yield 2
+...     yield 4
+...     yield 8
+...
+&gt;&gt;&gt; for i in gg() : print i
+...
+2
+4
+8
+&gt;&gt;&gt;
+</pre><p>What turns a function definition into a generator is the use of the keyword
+<code class="python">yield</code> which returns
+a value but keeps a bookmark of where it left off and retains values for local
+variables.  The <code class="python">for</code> loop will keep
+getting values from the generator until an explicit <code>return</code> in the
+generator is encountered or the generator falls off the end (an implicit return).</p><p>Generators are actually objects with a <code>next</code> method that is used 
+by the <code>for</code> loop. A generator raises a specific exception when a
+<code>return</code> is excecuted, explicitly or implicitly.</p><p>Here is a generator that will generate all the sentences in the little
+recursive grammar above.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">gen3</span>(<span class="py-src-parameter">network</span>, <span class="py-src-parameter">label</span>, <span class="py-src-parameter">state</span>) :
+    <span class="py-src-string">&quot;Use generator to yield all possible sentences&quot;</span>
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">network</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">label</span>) : <span class="py-src-keyword">yield</span> <span class="py-src-variable">label</span>  <span class="py-src-comment"># if not a subnet stands for itself</span>
+    <span class="py-src-keyword">elif</span> <span class="py-src-variable">state</span> == <span class="py-src-variable">END</span>         : <span class="py-src-keyword">yield</span> <span class="py-src-string">&quot;&quot;</span>     <span class="py-src-comment"># no state. end of road</span>
+    <span class="py-src-keyword">else</span> :
+        <span class="py-src-variable">net</span> = <span class="py-src-variable">network</span>[<span class="py-src-variable">label</span>]
+        <span class="py-src-variable">p</span> = <span class="py-src-variable">net</span>[<span class="py-src-variable">state</span>]; <span class="py-src-variable">s</span> = <span class="py-src-string">&quot;&quot;</span>
+        <span class="py-src-keyword">for</span> <span class="py-src-variable">labl</span>,<span class="py-src-variable">nextState</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">p</span> :
+            <span class="py-src-keyword">for</span> <span class="py-src-variable">word</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">gen3</span>(<span class="py-src-variable">network</span>,<span class="py-src-variable">labl</span>,<span class="py-src-number">1</span>) :
+                <span class="py-src-keyword">for</span> <span class="py-src-variable">rest</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">gen3</span>(<span class="py-src-variable">network</span>,<span class="py-src-variable">label</span>,<span class="py-src-variable">nextState</span>) :
+                    <span class="py-src-keyword">yield</span> <span class="py-src-variable">word</span> + <span class="py-src-string">&quot; &quot;</span> + <span class="py-src-variable">rest</span>
+</pre><p>This generator is doubly recursive and deserves a close study.  When it is
+entered <code>label</code> may be subnetwork or a terminal word (like <q>red</q>).
+Basically, from a given state, each arc is tried. For each <q>word</q> (terminal or
+subnetwork) the arc label produces, we check from the target node to see if
+the END can be reached and yield the sentence accordingly. It is tricky.</p><p>Let's try this out.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import simple
+&gt;&gt;&gt; import rtn
+&gt;&gt;&gt; for x in rtn.gen3(simple.net3,&quot;noun&quot;,1) : print x
+... 
+book 
+table 
+top 
+cover 
+&gt;&gt;&gt; for x in rtn.gen3(simple.net3,&quot;adjective&quot;,1) : print x
+... 
+big 
+small 
+red 
+&gt;&gt;&gt; for x in rtn.gen3(simple.net3,&quot;sentence&quot;,1) : print x
+... 
+big  book  
+big  table  
+big  top  
+big  cover  
+small  book  
+small  table  
+small  top  
+small  cover  
+red  book  
+red  table  
+red  top  
+red  cover  
+&gt;&gt;&gt; 
+</pre><p>As an exercise, figure out why the words are separated by 2 spaces instead of 1.</p><h2>Matching input sentences<a name="auto5"></a></h2><p>Usually, we want to see if a given sentence is valid in the grammar and,
+if so, what are the constituent parts and how are they related to one another.
+Sometimes there are multiple possibilities. For example, with the sentence,
+<q>The book on the table that is red</q>, you can't tell whether it is the
+table or the book that is red. Of course we humans will rely on context for
+resolving ambiguities. In the sentence, <q>The man wearing the hat that is
+green</q>, it is almost certain that it is the hat that is green since you
+almost never see martians wearing hats. But computer programs cannot be
+expected to know such things. At least not yet!  So if our grammar allows
+ambiguity, the matching algorithm should find multiple interpretations.</p><p>Our approach will be to generate all sentences that match an input sentence.
+If we are unable to find at least one match the sentence is not valid for our
+grammar.  Later, as the match is generated we will track the structures built
+in subnetworks and combine them into nested list structures. The nesting will
+show the relationship of the parts in the same way that a sentence diagram
+does.</p><p>We are going to build a noun phrase grammar that includes prepositional
+phrases.  Much like adjectives, these qualify (or zero in on) a noun. <q>The book on 
+the table with a red cover</q> has two prepositional phrases both of which
+distinguish this book from, perhaps, others nearby. However, notice the
+ambiguity. Is the book or the table covered?</p><p>Let's look at a grammar that brings this together. You can access the code
+in <a href="english.py">english.py</a>. Here it is.</p><pre class="python">
+<span class="py-src-comment">#
+</span><span class="py-src-comment">#  e n g l i s h . p y
+</span><span class="py-src-comment">#
+</span><span class="py-src-variable">END</span> = <span class="py-src-variable">None</span>
+
+<span class="py-src-variable">net</span> = {
+    <span class="py-src-string">&quot;:noun1&quot;</span>: {
+        <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;book&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;table&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;top&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;cover&quot;</span>,<span class="py-src-variable">END</span>))
+        },
+
+    <span class="py-src-string">&quot;:article&quot;</span>: {
+        <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;the&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;a&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;an&quot;</span>,<span class="py-src-variable">END</span>))
+        },
+
+    <span class="py-src-string">&quot;:adjective&quot;</span>: {
+        <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;big&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;small&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;red&quot;</span>,<span class="py-src-variable">END</span>))
+        },
+
+    <span class="py-src-string">&quot;:preposition&quot;</span>: {
+        <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;on&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;of&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;in&quot;</span>,<span class="py-src-variable">END</span>),(<span class="py-src-string">&quot;with&quot;</span>,<span class="py-src-variable">END</span>))
+        },
+
+    <span class="py-src-string">&quot;:noun2&quot;</span>: {
+        <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;:article&quot;</span>, <span class="py-src-number">1</span>), (<span class="py-src-string">&quot;&quot;</span>,<span class="py-src-number">2</span>)),
+        <span class="py-src-number">2</span>: ((<span class="py-src-string">&quot;:adjective&quot;</span>, <span class="py-src-number">2</span>), (<span class="py-src-string">&quot;:noun1&quot;</span>, <span class="py-src-variable">END</span>))
+        },
+
+    <span class="py-src-string">&quot;:prepPhrase&quot;</span>: {
+        <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;:preposition&quot;</span>, <span class="py-src-number">2</span>), ),
+        <span class="py-src-number">2</span>: ((<span class="py-src-string">&quot;:noun3&quot;</span>, <span class="py-src-variable">END</span>), )
+        },
+
+    <span class="py-src-string">&quot;:noun3&quot;</span>: {
+        <span class="py-src-number">1</span>: ((<span class="py-src-string">&quot;:noun2&quot;</span>, <span class="py-src-variable">END</span>), (<span class="py-src-string">&quot;:noun2&quot;</span>, <span class="py-src-number">2</span>)),
+        <span class="py-src-number">2</span>: ((<span class="py-src-string">&quot;:prepPhrase&quot;</span>, <span class="py-src-variable">END</span>), (<span class="py-src-string">&quot;:prepPhrase&quot;</span>, <span class="py-src-number">2</span>))
+        },
+}
+</pre><p>Let's note a few things. The names of the networks now start with a &quot;:&quot;. There are
+two reasons for this. One, we can immediately see that a word represents a
+subnetwork rather than itself. Two, it allows the name of a subnetwork to  stand for
+itself. Using the colon is simply a convention. The code does not care.</p><p>So, here we have basic nouns (:noun1) like &quot;book&quot; and &quot;table&quot;, modified nouns (:noun2)
+that include a possible article (the, a) and perhaps adjectives (red, big) and now noun
+phrases (noun3) that include prepositional phrases</p><p>Two special things need to be brought to attention. First, notice the <code>(&quot;&quot;,2)</code>
+in state 1 in the :noun2 network. If an :article is not found, we basically can proceed to
+state2 for free, without consuming any input</p><p>Next, notice that in state 2 of :prepPhrase the noun inside the prepositional phrase is
+also a :noun3. That means, of course, that its noun can also be modified by its own
+prepositional phrase. We'll see the implications of that shortly.</p><h2>The match generator<a name="auto6"></a></h2><p>Our first match generator is very simliar to <code>gen3</code> above.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">match1</span>(<span class="py-src-parameter">network</span>, <span class="py-src-parameter">label</span>, <span class="py-src-parameter">state</span>, <span class="py-src-parameter">input</span>) :
+    <span class="py-src-keyword">if</span>   <span class="py-src-variable">state</span> == <span class="py-src-variable">END</span> : <span class="py-src-keyword">yield</span> <span class="py-src-variable">input</span>[:]
+    <span class="py-src-keyword">elif</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">input</span>    : <span class="py-src-keyword">return</span>
+    <span class="py-src-keyword">elif</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">network</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">label</span>) :
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">label</span> == <span class="py-src-string">&quot;&quot;</span>       : <span class="py-src-keyword">yield</span> <span class="py-src-variable">input</span>[<span class="py-src-number">0</span>:]  <span class="py-src-comment"># free pass</span>
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">label</span> == <span class="py-src-variable">input</span>[<span class="py-src-number">0</span>] : <span class="py-src-keyword">yield</span> <span class="py-src-variable">input</span>[<span class="py-src-number">1</span>:]
+    <span class="py-src-keyword">else</span> :
+        <span class="py-src-variable">net</span> = <span class="py-src-variable">network</span>[<span class="py-src-variable">label</span>]
+        <span class="py-src-variable">p</span> = <span class="py-src-variable">net</span>[<span class="py-src-variable">state</span>]; <span class="py-src-variable">s</span> = <span class="py-src-string">&quot;&quot;</span>
+        <span class="py-src-keyword">for</span> <span class="py-src-variable">labl</span>,<span class="py-src-variable">nextState</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">p</span> :
+            <span class="py-src-keyword">for</span> <span class="py-src-variable">input1</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">match1</span>(<span class="py-src-variable">network</span>,<span class="py-src-variable">labl</span>, <span class="py-src-number">1</span>, <span class="py-src-variable">input</span>) :
+                <span class="py-src-keyword">for</span> <span class="py-src-variable">rest</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">match1</span> (<span class="py-src-variable">network</span>,<span class="py-src-variable">label</span>,<span class="py-src-variable">nextState</span>, <span class="py-src-variable">input1</span>) :
+                    <span class="py-src-keyword">yield</span> <span class="py-src-variable">rest</span>
+</pre><p>Breathe deeply and relax.  It's mostly the same code with the addition of &quot;input&quot;
+to be matched. The input consists of words in a list like &quot;['the','big','red','book']&quot;.
+As possibilities are generated they must match the input and as that happens the REST of
+the input is yielded as a result. At the single word level this is &quot;yield input[1:]&quot; and
+at the phrase level this is &quot;yield rest&quot;.</p><p>In line 5 (free pass) we are allowing an arc to jump from one state to another
+without consuming input. Basically an unlabeled arc. This will allow an article like &quot;the&quot; to
+be optional.</p><p>A subtle point should be noted. Yielding <code>input[0:]</code> and <code>input[1:]</code>
+create new lists in Python which will be
+independent of whatever else might happen to <code>input</code>. Lists are mutable objects and
+the program may, at any time, may be generating multiple matches. If these matches
+were all modifying a common list, they could easily get into the situation of 
+stepping all over their own toes.</p><p>Let's play with this a bit. Notice that the words of our input are already split into a
+list and that a flag word &quot;xx&quot; is being appended.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import english, rtn
+&gt;&gt;&gt; for s in rtn.match1(english.net, ':noun1', 1, ['book','xx']) : print s
+['xx']
+</pre><p>Here we have a simple match on the word book. It is consumed leaving 'xx' unmatched.</p><pre class="python-interpreter">
+&gt;&gt;&gt; for s in rtn.match1(english.net, ':noun1', 1, ['the','book','xx']) : print s
+&gt;&gt;&gt; for s in rtn.match1(english.net, ':noun2', 1, ['the','red','book','xx']) : print s
+['xx']
+</pre><p>Trying to match &quot;the book&quot; to a :noun1 fails, but a :noun2 can handle that along
+with an adjective &quot;red&quot;.</p><h2>Retrieving the sentence structure<a name="auto7"></a></h2><p>Our match generator generates values containing the input that remains
+to be matched. We would also like to generate a data structure showing the
+sentence structure of the input that has been matched.</p><p>We'll generate nested tuples, one tuple for each network. An example should
+make this fairly clear. The <code>noun2</code> sentence <q>the red book</q> is
+represented by the set of nested tuples</p><pre class="python">
+&gt;&gt;&gt; <span class="py-src-keyword">for</span> <span class="py-src-variable">s</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">rtn</span>.<span class="py-src-variable">match2</span>(<span class="py-src-variable">english</span>.<span class="py-src-variable">net</span>, <span class="py-src-string">':noun2'</span>, <span class="py-src-number">1</span>, [<span class="py-src-string">'the'</span>,<span class="py-src-string">'red'</span>,<span class="py-src-string">'book'</span>,<span class="py-src-string">'xx'</span>]) : <span class="py-src-keyword">print</span> <span class="py-src-variable">s</span>
+([<span class="py-src-string">'xx'</span>], (<span class="py-src-string">':noun2'</span>, (<span class="py-src-string">':article'</span>, <span class="py-src-string">'the'</span>), (<span class="py-src-string">':adjective'</span>, <span class="py-src-string">'red'</span>), (<span class="py-src-string">':noun1'</span>, <span class="py-src-string">'book'</span>)))
+</pre><p>The remaining input &quot;xx&quot; is returned along with a parse tree, each node a 2 element
+tuple. The first element of each tuple contains the name of the network and the second
+is the subtree or node that satisfies it. This format makes it fairly easy to do semantic
+analysis.</p><p>And this is the python code:</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">match2</span>(<span class="py-src-parameter">network</span>, <span class="py-src-parameter">label</span>, <span class="py-src-parameter">state</span>, <span class="py-src-parameter">input</span>,<span class="py-src-parameter">ind</span>=<span class="py-src-number">0</span>) :
+    <span class="py-src-keyword">if</span>   <span class="py-src-variable">state</span> == <span class="py-src-variable">END</span> : <span class="py-src-keyword">yield</span> <span class="py-src-variable">input</span>[:],<span class="py-src-variable">None</span>
+    <span class="py-src-keyword">elif</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">input</span>    : <span class="py-src-keyword">return</span>
+    <span class="py-src-keyword">elif</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">network</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">label</span>) :
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">label</span> == <span class="py-src-string">&quot;&quot;</span>       : <span class="py-src-keyword">yield</span> <span class="py-src-variable">input</span>[<span class="py-src-number">0</span>:],<span class="py-src-variable">label</span>  <span class="py-src-comment"># free pass</span>
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">label</span> == <span class="py-src-variable">input</span>[<span class="py-src-number">0</span>] : <span class="py-src-keyword">yield</span> <span class="py-src-variable">input</span>[<span class="py-src-number">1</span>:],<span class="py-src-variable">label</span>
+    <span class="py-src-keyword">else</span> :
+        <span class="py-src-variable">net</span> = <span class="py-src-variable">network</span>[<span class="py-src-variable">label</span>]
+        <span class="py-src-variable">p</span> = <span class="py-src-variable">net</span>[<span class="py-src-variable">state</span>]; <span class="py-src-variable">s</span> = <span class="py-src-string">&quot;&quot;</span>
+        <span class="py-src-variable">trace</span> = [<span class="py-src-variable">label</span>]
+        <span class="py-src-keyword">for</span> <span class="py-src-variable">labl</span>,<span class="py-src-variable">nextState</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">p</span> :
+            <span class="py-src-variable">sav1</span> = <span class="py-src-variable">trace</span>[:]
+            <span class="py-src-keyword">for</span> <span class="py-src-variable">input1</span>,<span class="py-src-variable">trace1</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">match2</span>(<span class="py-src-variable">network</span>,<span class="py-src-variable">labl</span>,<span class="py-src-number">1</span>,<span class="py-src-variable">input</span>) :
+                <span class="py-src-keyword">if</span> <span class="py-src-variable">trace1</span> : <span class="py-src-variable">trace</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">trace1</span>)
+                <span class="py-src-variable">sav2</span> = <span class="py-src-variable">trace</span>[:]
+                <span class="py-src-keyword">for</span> <span class="py-src-variable">rest</span>,<span class="py-src-variable">trace2</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">match2</span>(<span class="py-src-variable">network</span>,<span class="py-src-variable">label</span>,<span class="py-src-variable">nextState</span>,<span class="py-src-variable">input1</span>) :
+                    <span class="py-src-keyword">if</span> <span class="py-src-variable">trace2</span> : <span class="py-src-variable">trace</span> = <span class="py-src-variable">trace</span> + <span class="py-src-variable">list</span>(<span class="py-src-variable">trace2</span>[<span class="py-src-number">1</span>:])
+                    <span class="py-src-keyword">yield</span> <span class="py-src-variable">rest</span>, <span class="py-src-variable">tuple</span>(<span class="py-src-variable">trace</span>[:])
+                    <span class="py-src-variable">trace</span> = <span class="py-src-variable">sav2</span>[:]
+                <span class="py-src-variable">trace</span> = <span class="py-src-variable">sav1</span>[:]
+</pre><p>This is essentially match1 extended to generate <q>trace</q> tuples. At each 
+level a different trace is started at line 10, grown at line 14 when the first
+arc is traversed and the rest of it gathered at line 17. The appends and
+additions are then backed off in lines 19 and 20 in order not to corrupt
+further possibilities. Incidentally, Don't feel bad if you have to study this
+closely. I spent hours getting this to work correctly.</p><p>Finally, our third matching function is very simple. It generates solutions only where 
+the complete input is matched. It simply yields the trace.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">match3</span> (<span class="py-src-parameter">network</span>, <span class="py-src-parameter">label</span>, <span class="py-src-parameter">state</span>, <span class="py-src-parameter">input</span>) :
+    <span class="py-src-string">&quot;Use generator to yield all possible matching sentences that consume input&quot;</span>
+    <span class="py-src-keyword">import</span> <span class="py-src-variable">string</span>
+    <span class="py-src-keyword">for</span> <span class="py-src-variable">input</span>,<span class="py-src-variable">trace</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">match2</span>(<span class="py-src-variable">network</span>, <span class="py-src-variable">label</span>, <span class="py-src-variable">state</span>, <span class="py-src-variable">input</span>) :
+        <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">input</span> : <span class="py-src-keyword">yield</span> <span class="py-src-variable">trace</span>
+</pre><h2>Dealing with Ambiguity<a name="auto8"></a></h2><p>Let's now play with a sentences that lead into ambiguity.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import rtn, english
+&gt;&gt;&gt; sentence = ['a','book','on','the','table']
+&gt;&gt;&gt; for t in rtn.match3(english.net, ':noun3', 1, sentence) : print &quot;Got one!!&quot;, t
+Got one!! (':noun3', (':noun2', (':article', 'a'), 
+             (':noun1', 'book')), (':prepPhrase', 
+                (':preposition', 'on'), (':noun3', 
+                  (':noun2', (':article', 'the'), (':noun1', 'table')))))
+&gt;&gt;&gt; 
+</pre><p>That's straightforward. I fussed with the indentation on the trace tree to make
+it more readable. But now notice this variation.</p><pre class="python-interpreter">
+&gt;&gt;&gt; sentence = ['a','book','on','the','table','with','a','cover']
+&gt;&gt;&gt; for t in rtn.match3(english.net, ':noun3', 1, sentence) : print &quot;Got one!!&quot;, t
+... 
+Got one!! (':noun3', (':noun2', (':article', 'a'), 
+            (':noun1', 'book')), (':prepPhrase', 
+               (':preposition', 'on'), (':noun3', 
+                   (':noun2', (':article', 'the'), (':noun1', 'table')), 
+                     (':prepPhrase', (':preposition', 'with'), (':noun3', 
+                        (':noun2', (':article', 'a'), (':noun1', 'cover')))))))
+
+Got one!! (':noun3', (':noun2', (':article', 'a'), 
+            (':noun1', 'book')), (':prepPhrase', 
+               (':preposition', 'on'), (':noun3', 
+                   (':noun2', (':article', 'the'), (':noun1', 'table')))),
+           (':prepPhrase', (':preposition', 'with'), (':noun3', 
+              (':noun2', (':article', 'a'), (':noun1', 'cover')))))
+&gt;&gt;&gt; 
+</pre><p>Do you see the difference? In the first interpretation, &quot;with a cover&quot; applies to
+to the table. In the second, it is the book that has a cover. It's all in counting the
+parans.</p><h2>Parsing another language<a name="auto9"></a></h2><p>Finally, let's contrast an english phrase with a japanese one and create a little
+RTN grammar for japanese.</p><p>The phrase we will parse is in english <q>the book on top of the table</q>.</p><p>Now in japanese there are no articles (the, a, an). Prepositional phrases
+precede the noun and the preposition itself comes at the end.  So the sentence
+looks like the following</p><pre>
+taberu   no   ue   ni  hon
+table    of   top  on  book
+</pre><p>See <a href="japanese.py">japanese.py</a> for the networks.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import japanese
+&gt;&gt;&gt; sentence = [&quot;taberu&quot;,&quot;no&quot;,&quot;ue&quot;,&quot;ni&quot;,&quot;hon&quot;]
+&gt;&gt;&gt; for t in rtn.match3(japanese.net, ':noun3', 1, sentence) : print &quot;Got one!!&quot;, t
+Got one!! (':noun3', (':prepPhrase', (':noun2', (':noun1', 'taberu')), 
+            (':preposition', 'no')), (':prepPhrase', (':noun2', (':noun1', 'ue')), 
+            (':preposition', 'ni')), (':noun2', (':noun1', 'hon')))
+&gt;&gt;&gt; 
+</pre><h2>Practical considerations<a name="auto10"></a></h2><p>We just used a network for lexicons of nouns, adjectives, etc. but this
+would be impractical for anything other than the toy grammars shown here.
+Instead, having <q>:noun1</q> be a network of individual words it would be more
+practical to have it call a function that accesses a lexicon with a structure indicating
+a number of things about the word, including that it is
+a noun and its japanese translation is <q>taberu</q>. Of course,
+<q>table</q> can also be a verb in which case it would have a different a second lexicon
+entry</p><p>In the next section (late 2009) we'll add the ability to have function calls inside the
+network. This will make it possible to extend program in interesting ways. We'll
+also start to play with the semantics of our input sentences, extracting meaning. Keep in touch.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2003-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

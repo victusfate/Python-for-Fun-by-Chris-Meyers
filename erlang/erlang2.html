@@ -1,0 +1,218 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Erlang for Logic Gates</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Erlang for Logic Gates</h1><div class="toc"><ol><li><a href="#auto0">Introduction</a></li><li><a href="#auto1">The basic NAND gate</a></li><li><a href="#auto2">Concurrency in Erlang</a></li><li><a href="#auto3">NAND gate as an Erlang process</a></li><li><a href="#auto4">Making a composite gate</a></li><li><a href="#auto5">A monitor process</a></li><li><a href="#auto6">A more complex example</a></li><li><a href="#auto7">Links to the Erlang code</a></li></ol></div><div class="content"><span></span><h2>Introduction<a name="auto0"></a></h2><p>In this section we will explore using Erlangs concurrency capabilities to simulate
+logic gates and circuits. I'm going to assume some familiarity with the Logic Circuits project,
+one of the first projects on this site.</p><p>In the earlier project basic logic gates are built as Python objects. Each basic gate has
+one or more inputs and a single output. As input values change (0 or 1) the output value is
+recalculated. In addition, the output of any gate is connected to a set of inputs and sends
+any change to them. A network of simple gates is built into circuits that add and even 
+perform multiplication. The stuff of computers simulated on a computer.</p><p>In this project, we'll take a similar route, but with a few twists. Instead of Python
+objects as basic gates, we'll spawn independent Erlang processes. These processes communicate
+with one another only through message passing which is exactly what we need for connecting
+them together. </p><h2>The basic NAND gate<a name="auto1"></a></h2><p>We actually need only to build a single basic gate, the 2 input NAND gate. All other gates
+can be built as circuits starting with it alone. The output of NAND is 0 if and only if both
+inputs are 1. It is a mirror of an AND gate. The NAND gate followed by an INVERTER becomes
+an AND gate. An INVERTER can, in turn be made from a single NAND by either connecting the
+2 inputs together (treating them as one) or leaving one input always set to 1.</p><img src="andInverter.gif" /><img src="and.gif" /><h2>Concurrency in Erlang<a name="auto2"></a></h2><p>Erlang has a simple and elegant of spawning processes and of message passing. We won't explore
+it in full, just enough for our purposes here.</p><p>Since processes communicate only through message passing, the top level structure of a process
+always looks the same. It resembles a server program in a client/server system. That is, it runs
+in a loop waiting for a message and responding to it.</p><p>Let's look at a simple example. A ticket dispenser gives tickets with ascending numbers each
+time it is used. Here's a little Erlang model in the file <a href="ticket.erl">ticket.erl</a>.</p><pre class="python-interpreter">
+ticket(N) -&gt;
+  receive
+    _ -&gt; 
+        io:format(&quot;Next ticket is ~p~n&quot;, [N]),
+        ticket(N+1)
+  end.
+</pre><p>The variable N holds the next ticket number. A message is received in the receive/end block.
+The pattern &quot;_&quot; will match any message. The next ticket number is printed and the process
+repeated through tail recursion. We can launch a ticekt dispenser with the following.</p><pre class="python-interpreter">
+1&gt; c(ticket).
+{ok,ticket}
+2&gt; T1  = spawn(fun() -&gt; ticket:ticket(100) end).
+</pre><p>The &quot;spawn&quot; function takes a function of no arguments as its argument, creates a new process
+and starts the function passed running within that process. Typically, this function is created on
+the fly using a fun/end block which is bascially the equivalent of the Python lambda expression.
+Here, the function in turn calls our &quot;ticket&quot; function passing in its initial ticket number.</p><p>It is very convenient to have a helper function to do this spawn for us. For example.</p><pre class="python-interpreter">
+makeTicket(N) -&gt; spawn(fun() -&gt; ticket(N) end).
+</pre><p>Now we can do the following.</p><pre class="python-interpreter">
+makeTicket(N) -&gt; spawn(fun() -&gt; ticket(N) end).
+</pre><p>Now let's watch the following.</p><pre class="python-interpreter">
+Eshell V5.6.3  (abort with ^G)
+1&gt;  T1  = spawn(fun() -&gt; ticket:ticket(100) end).
+&lt;0.33.0&gt;
+2&gt; T2 = ticket:makeTicket(200).
+&lt;0.35.0&gt;
+3&gt; T1 ! 0.
+Next ticket is 100
+0
+4&gt; T1 ! 0.
+Next ticket is 101
+0
+5&gt; T2 ! 0.  
+Next ticket is 200
+0
+6&gt; T2 ! 0.
+Next ticket is 201
+0
+7&gt; T1 ! 0.                     
+Next ticket is 102
+0
+8&gt; 
+</pre><p>Here we've spawned two ticket dispensers, the first directly and the second using the
+convenience function &quot;makeTicket&quot;. T1 and T2 are set to the &quot;pid&quot; (process id) of each
+processes. The &quot;!&quot; operator is used to send a message to pid. We're just sending the number
+zero, but as mentioned above it could be anything since we're matching with &quot;_&quot;.
+As we send messages to these processes they print the next ticket number and then increment.
+The value returned from the spawn is simply the message sent.</p><h2>NAND gate as an Erlang process<a name="auto3"></a></h2><p>Let's look at the basic function for the emulation of out NAND gate.</p><pre class="python-interpreter">
+nandG(Tag,A,B,Prev,Con) -&gt;
+    C = 1-(A band B),
+    if not (Prev==C) -&gt;
+      propogate(Tag, Prev, C, Con), nandG(Tag,A,B,C,Con);
+    true -&gt;
+      receive
+        {a,V} -&gt; nandG(Tag,V,B,C,Con);
+        {b,V} -&gt; nandG(Tag,A,V,C,Con);
+        {connect, X} -&gt;
+            propogate(Tag,Prev,C,X),
+            nandG(Tag,A,B,C,X)
+      end
+    end.
+</pre><p>The NAND gate has 2 inputs (A and B) and an output C. The function is passed a Tag for identification
+and the initial values of A and B. We'll get to the parameters Prev and Con in a moment.</p><p>Let's first look at the &quot;receive&quot; portion of the function. A message of the form {a,V} or {b,V}
+is used to set the input, either A or B to the value of V (0 or 1). Getting such a message results
+in a tail recursive call, resetting the state of gate. As the function is reentered, the output C
+is computed. If it is different from the previous output, the new value is propogated by messages to
+inputs of other gates that are connected to this output. Then the function is reentered once more
+to basically reset the variable &quot;Prev&quot; and enter the receive loop to wait for more messages.</p><p>Connections to other inputs is formatted as a list of tuples. Each tuple consists of a gate identifier,
+basically its Pid, and a symbol for the input itself. Let's look at the propogate function.</p><pre class="python-interpreter">
+propogate(Who, Prev, Val, Con) -&gt;
+    io:format(&quot;~p was ~p xmits ~p to ~p~n&quot;, [Who, Prev, Val, Con]),
+    prop2 (Con, Val).
+
+prop2([],Val) -&gt; Val;
+prop2([{Gate,Input}|T],Val) -&gt; Gate ! {Input, Val}, prop2(T,Val).
+</pre><p>The &quot;propogate&quot; function outputs a console message showing which gate is outputting, what value, to
+what inputs. The function &quot;prop2&quot; does the real work, extracting the Gate and Input from each tuple,
+and then sending a message to the receiver gates input with the new value (0 or 1). Notice the 
+variable &quot;Prev&quot; is printed just for information purposes.</p><p>Finally, the &quot;nandG&quot; function with a single &quot;Tag&quot; parameter (nandG/1) is the one actually used from the
+outside. It spawns the nandG/5 function as a new process setting the inputs initially to &quot;1&quot;, their
+natural state when unconnected, and then returns the pid of the new process.</p><pre class="python-interpreter">
+nandG(Tag) -&gt; spawn(fun() -&gt; nandG(Tag,1,1,99,[]) end).
+</pre><h2>Making a composite gate<a name="auto4"></a></h2><p>A composite gate combines basic gates at one level, connects them together and then provides inputs and
+an output from the entire structure. Let's make an AND gate using two NAND gates as shown here.</p><img src="and2.gif" /><p>Again we'll break the system into 2 parts. The first (andG/1) will assemble the parts, wire them
+together a new process for the composite gate.</p><pre class="python-interpreter">
+andG(Tag) -&gt;
+	G1 = logic:nandG(g1),
+	G2 = logic:nandG(g2),
+	G1 ! {connect, [{G2,a}]},    % internal connection
+    spawn(fun() -&gt; andG(Tag,G1,G2) end).
+</pre><p>As you can see, the inner gates (actually, their process ids) are held in the variables G1 and G2. Then
+the internal connection is made from the output of G1 to input A of G2. This connection is not visible
+to the outside. Finally, we spawn yet another process to handle the composite gate itself. This
+process receives message to set its inputs and make connections to its output in exactly the
+same way a basic gate does.</p><pre class="python-interpreter">
+andG(Tag, G1, G2) -&gt;
+  	receive
+      {a,V}        -&gt; G1 ! {a,V}, andG(Tag,G1,G2);
+      {b,V}        -&gt; G1 ! {b,V}, andG(Tag,G1,G2);
+	  {connect, X} -&gt; G2 ! {connect, X}, andG(Tag,G1,G2)
+	end.
+</pre><p>Let's play with this a bit</p><pre class="python-interpreter">
+Eshell V5.6.3  (abort with ^G)
+1&gt; And = logic:andG(&quot;A1&quot;).
+g2 was 99 xmits 0 to []
+g1 was 99 xmits 0 to []
+&lt;0.35.0&gt;
+g1 was 0 xmits 0 to [{&lt;0.34.0&gt;,a}]
+g2 was 0 xmits 1 to []
+2&gt; And ! {a,0}. 
+g1 was 0 xmits 1 to [{&lt;0.34.0&gt;,a}]
+{a,0}
+g2 was 1 xmits 0 to []
+3&gt; And ! {a,1}.
+g1 was 1 xmits 0 to [{&lt;0.34.0&gt;,a}]
+{a,1}
+g2 was 0 xmits 1 to []
+4&gt;
+</pre><p>In line one we create a composite AND gate giving it the name &quot;A1&quot;. Since the io.format call is
+still in the propogate function we can see the 2 internal gates trying to transmit an output to
+empty recipricant lists. The pid of our AND gate (0.35.0) is printed as its process is spawned. Then
+we see more propogation and the interior gates are connected.</p><p>On line two we set input A of our composite AND to 0, which brings the composite output to zero
+as well. In line three we set it back to one. </p><h2>A monitor process<a name="auto5"></a></h2><p>The output spewed to our screen from the propogate function is really more verbose than we want,
+at least once we trust the basic logic of our gates. Let's comment out that particular statement
+leaving us with</p><pre class="python-interpreter">
+propogate(Who, Prev, Val, Con) -&gt;
+	% io:format(&quot;~p was ~p xmits ~p to ~p~n&quot;, [Who, Prev, Val, Con]),
+	prop2 (Con, Val).
+	
+prop2([],Val) -&gt; Val;
+prop2([{Gate,Input}|T],Val) -&gt; Gate ! {Input, Val}, prop2(T,Val).
+</pre><p>and in its place have a function &quot;monitor&quot; that accepts a single input. This will be
+connected to an output that we wish to monitor. We could have several monitors in a circuit. By
+providing a tag for each we can keep track of who's talking. Here's the code</p><pre class="python-interpreter">
+monitor(Tag) -&gt; spawn(fun() -&gt; monitor(Tag,0) end).
+monitor(Tag,_) -&gt;
+  	receive
+      {a,V} -&gt; io:format(&quot;Monitor ~p reads ~p~n&quot;, [Tag,V]), monitor(Tag,V)
+	end.
+</pre><p>Now let's play with this a bit. I have deleted the values echoed from the message passing
+commands.</p><pre class="python-interpreter">
+3&gt; M1 = logic:monitor(m1).
+4&gt; M1 ! {a,1}.
+Monitor m1 reads 1
+5&gt; M1 ! {a,1}.
+Monitor m1 reads 1
+6&gt; M1 ! {a,0}.
+Monitor m1 reads 0
+</pre><p>We created a monitor &quot;m1&quot; whose pid is in M1 (line 3). Then we set its input to one resulting
+in a readout. Setting it back to zero gives another readout. Now let's connect the monitor to the
+output of a composite gate.</p><pre class="python-interpreter">
+6&gt; A1 = logic:andG(a1).
+7&gt; A1 ! {connect, [{M1,a}]}.
+Monitor m1 reads 1
+8&gt; A1 ! {a,0}.
+Monitor m1 reads 0
+9&gt; A1 ! {a,1}.
+Monitor m1 reads 1
+</pre><h2>A more complex example<a name="auto6"></a></h2><p>The following is composite gate for an exclusive OR (XOR) gate. This gate outputs 1 if either input
+is 1 but not both. Or to put it another way, it outputs 1 if the inputs are different. It is the basis
+of the half-adder circuit.</p><img src="xor.gif" /><p>See if you can walk through the logic on your own. </p><p>Without too much surprise, here is the erlang code for the XOR gate. Though more elaborate than the
+AND gate, the ideas are still the same.</p><pre class="python-interpreter">
+xorG(Tag) -&gt;
+	I1 = logic:nandG(i1),     % two inverters (just use one input of nand)
+	I2 = logic:nandG(i2),
+	N1 = logic:nandG(n1),     % three 2 input nand gates
+	N2 = logic:nandG(n2),
+	N3 = logic:nandG(n3),
+	
+	I1 ! {connect, [{N1,b}]}, % internal connections
+	I2 ! {connect, [{N2,a}]},
+	N1 ! {connect, [{N3,a}]},
+	N2 ! {connect, [{N3,b}]},
+	spawn(fun() -&gt; xorG(Tag,N1,N2,N3,I1,I2) end).
+    
+xorG(Tag,N1,N2,N3,I1,I2) -&gt;
+  	receive
+      {a,V}        -&gt; N1 ! {a,V}, I2 ! {a,V}, xorG(Tag,N1,N2,N3,I1,I2);
+      {b,V}        -&gt; N2 ! {b,V}, I1 ! {a,V}, xorG(Tag,N1,N2,N3,I1,I2);
+	  {connect, X} -&gt; N3 ! {connect, X}     , xorG(Tag,N1,N2,N3,I1,I2)
+	end.
+</pre><p>If you didn't walk through the logic of the XOR gate on your own, here's my rendition. N3 outputs 1
+if either of its inputs is zero. N1 outputs zero if A is 1 and B is 0. N2 outputs zero if B is 1 and
+A is 0.</p><p>And here is an interaction with an Xor gate and a monitor on its output. Again extra echoing
+of values by the erlang shell have been removed.</p><pre class="python-interpreter">
+11&gt; X1 = logic:xorG(x1).
+12&gt; M2 = logic:monitor(x1_monitor).
+13&gt; X1 ! {connect, [{M2,a}]}.
+Monitor x1_monitor reads 0
+14&gt; X1 ! {b,0}.
+Monitor x1_monitor reads 1
+15&gt; X1 ! {a,0}.
+Monitor x1_monitor reads 0
+</pre><p>Of course we could extend all this to emulate adders, registers, and other circuits built in
+the earlier Python project. It would quickly swell to hunderds of Erlang processes giving the
+system quite a nice workout.</p><p>It would also be interesting to extend these ideas into the realm of analog electronics building
+units for resisters, capacitors, coils, diodes and transistors. Well, maybe something for another
+rainy day in Oregon. :) </p><h2>Links to the Erlang code<a name="auto7"></a></h2><p>Finally, here are links to 
+ <a href="ticket.erl.txt">ticket.erl</a> and  <a href="logic.erl.txt">logic.erl</a> 
+code.</p></div><p><a href="../index.html">Index</a></p></body></html>

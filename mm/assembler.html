@@ -1,0 +1,129 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Assembers and Assembly Language</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Assembers and Assembly Language</h1><div class="toc"><ol><li><a href="#auto0">Problems with Machine Language</a></li><li><a href="#auto1">Assembler Programs</a></li><li><a href="#auto2">An Assembler for MM in Python</a></li><li><a href="#auto3">Other Considerations</a></li></ol></div><div class="content"><span></span><p><a href="assembler.py">Click here for the Python code for the MM Assembler</a>
+
+In the last <a href="simulator.html">section</a> we looked at a simulator
+program for the Mythical Machine. In this section and the next we'll see
+how software evolved to make programming computers much easier.
+
+<h2>Problems with Machine Language<a name="auto0"></a></h2>
+
+Programming in machine language is tedious for some obvious reasons. One is
+that you have to keep track of the numerical operation codes and not
+choose the wrong one. In coding the little programs of the last section we
+cheated a bit in that our format allowed us to put a comment after
+the address and assembled instruction which
+the simulator simply ignored. Without those comments the code would be
+extruciating to follow.</p><p>Another problem occurs if we are assembling a jump instruction. We only know
+the target address if the jump is back to a previous instruction. If the jump
+is forward to an instruction yet to come then we probably don't know
+what the address will be. So we have to come back later to complete the
+jump instruction.</p><p>But here is the worst problem. Suppose our initial code contains errors
+that require more (or fewer) instructions to fix. Then some jump instructions
+may have the wrong target addresses when the code is fixed and other instructions
+get shifted in memory. A major headache.
+
+One quick and dirty approach to this problem was apply what was called a binary
+patch. Where the code change occurred, we replaced whatever instruction
+was presently there with a jump to some available memory. At that address we
+put the replaced instruction, any new instructions and finally a jump
+back to the original spot. That saved other jumps around the patch from needing
+modification but code like this very quickly becomes messy
+and unmanagable.</p><h2>Assembler Programs<a name="auto1"></a></h2><p>The answer to these problems was to create &quot;assembler&quot; programs that
+let us represent the operation codes, registers, and addresses
+symbolically and let this program assemble the numeric instructions
+for us. When changes are made in the program, the assembler code is 
+modified and the entire program re-assembled to machine code.</p><p>In assembler pieces of each instruction are represented in a way
+that is much more readable to humans.
+For example &quot;add r1,r2&quot; could mean add register 2 to register 1.
+The assembler would assemble the opcode (05) with the 2 register arguments
+to create the instruction 051002. Jump destinations and data addresses are determined
+by applying a label to an instruction or data point. This will be clearer with an
+example. Here is the assembly language version of our
+previous program to add a list of numbers together.</p><pre class="shell">
+go    ld#  r0,0      register 0 will hold the sum, init it
+      ld#  r1,nums   register 1 points to the numbers to add
+      ld#  r2,1      register 2 holds the number one.
+loop  ldi  r3,r1     get next number into register 3
+      jz   r3,done   if its zero we're finished
+      add  r0,r3     otherwise add it to the sum
+      add  r1,r2     add one to register one (next number to load)
+      jmp  loop      go for the next one
+done  hlt  00        all done. sum is in register 0
+nums  123            the numbers to add
+      234
+      345
+        0            end of the list
+</pre><p>You may already see what is going on here. The symbols r1,r2 represent
+the general registers. The symbols &quot;ld#&quot;, &quot;ldi&quot;, &quot;ldr&quot;, &quot;jz&quot;, &quot;jmp&quot;
+and &quot;hlt&quot; are operation codes we are using. Finally the symbols go&quot;,
+&quot;loop&quot;, &quot;done&quot; and &quot;nums&quot; are labels arbitrarily chosen to
+represent memory addresses. We don't
+know what those memory addresses will be and we don't really care.
+The assembler program will figure that out for us.</p><p>Each line has the information for the assembler to build a single machine
+instruction. One, two, or three fields may be followed by an optional comment.
+In the first line the label &quot;go&quot; will make the symbol &quot;go&quot;
+the same as the address of this instruction. A label starts at the
+beginning of the line with no white space preceding it. The second field is
+the operation code &quot;ld#&quot; (load number) and the third field &quot;r0,0&quot; provides the
+information to complete the instruction. Some instructions require both
+a register and address argument, &quot;jmp&quot; requires only an address, and
+&quot;hlt&quot; needs no argument at all. Finally, the operation code may be replaced by
+a simple number which lets us put data into the program.</p><h2>An Assembler for MM in Python<a name="auto2"></a></h2><p>If you haven't already get a printout
+of the <a href="assembler.py">program code for the MM Assembler</a>
+or put it into another window.</p><p>The assembler works in two passes. The first pass
+determines what address values need to be assigned for each of our
+labels. These are stored in the dictionary &quot;lookup&quot; along with the
+register definitions.</p><p>The second pass uses the opcode field and argument field
+to build instructions, substituting lables in the argument field
+with their numeric addresses.</p><p>Assemblers usually take an input file with contents like the above and
+produce two output files. One is the machine language
+in a form that the computer can load for execution. Generally it is combined
+with others that are &quot;linked&quot; to form a complete
+executable program. The other output is a listing file that would look like the
+following.</p><pre class="shell">
+100 030000   go    ld#  r0,0      reg 0 will hold the sum
+101 031107         ld#  r1,nums   reg 1 points to next num
+102 042001   loop  ldi  r2,r1     get next number into reg 2
+103 112106         jz   r2,done   if its zero we're done
+104 050002         add  r0,r2     else add it to the sum
+105 100102         jmp  loop      go for the next one
+106 000000   done  hlt            all done. sum is in reg 0
+107 000123   nums  123            the numbers to add
+108 000234         234
+109 000345         345
+110 000000           0            zero marks the end
+</pre><p>Function &quot;main&quot; reads the entire program from standard input to a
+list of lines and then passes the list to functions &quot;pass1&quot; and &quot;pass2&quot;.</p><p>The function &quot;pass1&quot; looks at each line of the program.
+Any label in the instruction
+is equated to the current value of the program counter in the dictionary
+&quot;lookup&quot;.  Then if a valid opcode
+is found the program counter is advanced since there
+will be an instruction generated from this line in pass 2.</p><p>The function &quot;pass2&quot; looks at each line again and this time assembles the
+instructions since all labels have had their values set in
+the &quot;lookup&quot; dictionary. The operation code for each instruction is
+either an opcode in &quot;codes&quot; or a simple number. Anything else raises an
+error and will show as &quot;***&quot; on the output.</p><p>It is ok to have a label alone on a line. This makes it possible
+to have several symbols equated to the same address. We will use this
+feature in the next section when we develop a tiny compiler for MM.</p><h2>Other Considerations<a name="auto3"></a></h2><p>There are a couple of things that should be pointed out. Our assembler
+creates code that is then loaded directly into our computer (or simulator)
+in an address space determined by the assembler. In real life final
+addressing is actually determined later by another program called the
+&quot;linker&quot;. The machine code is also designed to facilitate this. Instead
+of actual addresses in the instructions, it's more likely that an offset
+from the current instruction would be used. So that &quot;jmp loop&quot; would
+not use the address 102, but rather -3. This complicates other things
+because now we would need two different instructions for &quot;ld# r0,0&quot; and
+&quot;ld# r0,nums&quot; since in the first instance we really want the number zero
+but in the second case we want whatever the final address of &quot;nums&quot; will
+be.</p><p>However there is a tremendous advantage to code like this. It may
+be loaded anywhere in memory, and the
+linker program may link together many separate modules to create a
+single executable. On modern systems it is even possible to load modules
+at runtime and link them together. In fact, this is exactly what you
+do whenver you import a module into your Python program
+that was written in the C language and compiled to machine code.</p>
+
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2003-2009 Chris Meyers</p>
+
+</div><p><a href="../index.html">Index</a></p></body></html>

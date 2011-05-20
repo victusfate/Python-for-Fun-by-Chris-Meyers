@@ -1,0 +1,35 @@
+% samples.erl
+%
+-module(samples).
+-export([factorial/1,factorial2/1,sum/1,suma/1,split/2,sort/1]).
+
+factorial(0) -> 1;
+factorial(N) -> N * factorial(N-1).
+
+factorial2(N)     -> factorial2(N,1).
+factorial2(0,ACC) -> ACC;
+factorial2(N,ACC) -> factorial2(N-1, ACC*N).
+ 
+
+sum([]) -> 0;
+sum([H|T]) ->  H + sum(T).
+ 
+
+suma(L) -> suma(L,0).
+suma([],Acc)    -> Acc;
+suma([H|T],Acc) -> suma(T, Acc+H).
+ 
+ 
+split(P,L) -> split(P,L,[],[]).
+ 
+split(_,[],A,B) -> [A,B];
+split(P,[H|T],A,B) when H =< P -> split(P,T,[H|A],  B);
+split(P,[H|T],A,B)             -> split(P,T,   A,[H|B]).
+ 
+
+sort( []   ) -> [];
+sort([H|T])  ->
+        [A,B] = split(H,T),
+        io:format("Pivot ~p: ~p ~p ~p~n",[H,T,A,B]),
+        sort(A) ++ [H] ++ sort(B).
+

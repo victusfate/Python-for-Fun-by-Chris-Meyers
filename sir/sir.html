@@ -1,0 +1,111 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: SIR - Semantic Information Retrieval</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">SIR - Semantic Information Retrieval</h1><div class="toc"><ol><li><a href="#auto0">Introduction.</a></li><li><a href="#auto1">Objects and Relationships</a></li><li><a href="#auto2">Just enough regular expression syntax</a></li><li><a href="#auto3">A Quick Overview of the Code</a></li><li><a href="#auto4">Relationship Paths</a></li><li><a href="#auto5">Forward and backward paths</a></li><li><a href="#auto6">Efficiency in path searching</a></li></ol></div><div class="content"><h2>Introduction.<a name="auto0"></a></h2><p>I was exposed to the original program, written in Lisp by Bertram Rapheal as part of his PHD, in the early 70's in my Artificial Intelligence class. The program inputs information from the user and builds a semantic network, that is, a network of objects connected by their relationships to each other. It can then, in turn, answer questions from the user making deductions from those same relationships.</p><h2>Objects and Relationships<a name="auto1"></a></h2><p>Consider the following dialogue</p><pre class="shell">
+? the cat owns a collar
+  I understand
+? fluff is a cat
+  I understand
+? does fluff own a collar
+  Not sure 
+? every cat owns a collar
+  I understand
+? does fluff own a collar
+  Yes 
+? 
+</pre><p>The program parses each sentence, which must be in a fairly rigid format, and outputs a response. The way this is done will become more clear as we proceed.</p><p>There are basically these kinds of objects</p><p> 1. Specific objects such as &quot;fluff&quot; or &quot;the cat&quot;</p><p> 2. Generic objects such as &quot;collar&quot; and &quot;cat&quot; and &quot;animal&quot;</p><p>Relationships between objects are the following</p><p> 1. A specific object may be a member of set of generic objects</p><p> 2. A specific object may have multiple names (equivalence). &quot;Dave&quot; and &quot;David&quot; may refer to the same person.</p><p> 3. A generic object may be a subset of another generic</p><p> 4. A specific object may own (possess) another specific or generic object</p><p> 5. Each member of a generic set may own another generic object</p><p>The original Lisp program as published in Shapiro's &quot;Techniques of Artificial Intelligence&quot; is about 13 pages of code and difficult. Several years ago I tried to basically translate it into Python but with unsatisfactory results. Recently, I took another look at the program with the idea of simplifying it somewhat and of using regular expressions to both parse the input and to express validations for relationship paths when answering questions. The result is a fairly simple program that is only a page and half of Python and should be fairly easy to understand.</p><h2>Just enough regular expression syntax<a name="auto2"></a></h2><p>I don't want to spend much time on regular expression syntax. There are lots of resources including <a href="http://www.amk.ca/python/howto/regex">http://www.amk.ca/python/howto/regex</a>. We can see what this program uses with a single example.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import re
+&gt;&gt;&gt; m = re.match (&quot;(every|any|an|a) (.*) is (a|an) (.*)&quot;, &quot;a man is a person&quot;)
+&gt;&gt;&gt; m
+&lt;_sre.SRE_Match object at 0xb7ef4cd8&gt;
+&gt;&gt;&gt; m.groups()
+('a', 'man', 'a', 'person')
+&gt;&gt;&gt; 
+</pre><p>The &quot;re&quot; module contains a &quot;match&quot; function which takes 2 parameters; a pattern and a string to match against the pattern. If the match is successful a &quot;match&quot; object is returned. The &quot;groups&quot; method returns a tuple with the parts matching subpatterns enclosed in parentheses. The &quot;|&quot; character makes alternative matches possible. The &quot;.&quot; character matches any single character and finally the &quot;*&quot; character indicates that the preceding character (or group) may be present zero or more times.</p><p>That's basically all we need to know</p><h2>A Quick Overview of the Code<a name="auto3"></a></h2><p>At this point, bring <a href="sir.py">the code for sir.py</a> into another window or make a printout.</p><p>The first thing you'll notice is the &quot;rules&quot; table that matches sentence patterns with actions. Statements that are input result in calls to the function &quot;addFact&quot;. Questions result in calls to the function &quot;getPath&quot;.  There are also simple commands to dump the facts table, toggle the debug flag, and exit the program gracefully.</p><p>As always, the program starts in the function &quot;main&quot; which reads input from either a file (or files) followed by input from the user. A file name of &quot;.&quot; bypasses input from the keyboard which makes it convenient to do regression testing as the program is developed</p><p>The interesting bits will now be looked at in more detail</p><h2>Relationship Paths<a name="auto4"></a></h2><p>It's pretty easy to see how regular expressions can match our input statements and questions. They can also be used to describe valid chains of relationships used to answer questions. </p><p>Inputting a sentence like &quot;every man is a person&quot; adds a relation to our &quot;database&quot; of relations. This is actually just a list of relations (&quot;facts&quot;). Each relation is a tuple. In this case the tuple will be ('man','s','person') where 's' means 'subset'.</p><p>The function &quot;matchSent&quot; matches your input sentence against the patterns in &quot;rules&quot;. If a match is found, the function &quot;addFact&quot; is called with 2 arguments; the groups from the match and a command string like &quot;1s3|3S1&quot;. Commands in the string are seperated by a &quot;|&quot;. This string means add the relation &quot;group(1) is a subset of group(3)&quot; and add the relation &quot;group(3) is a superset of group(1). Here are some more examples.</p><pre class="python">
+<span class="py-src-variable">rules</span> = (
+ (<span class="py-src-string">&quot;(every|any|an|a) (.*) is (a|an) (.*)&quot;</span>,<span class="py-src-keyword">lambda</span> <span class="py-src-variable">g</span>: <span class="py-src-variable">addFact</span>(<span class="py-src-variable">g</span>,<span class="py-src-string">&quot;1s3|3S1&quot;</span>)),
+ (<span class="py-src-string">&quot;(.*) is (a|an) (.*)&quot;</span>,                 <span class="py-src-keyword">lambda</span> <span class="py-src-variable">g</span>: <span class="py-src-variable">addFact</span>(<span class="py-src-variable">g</span>,<span class="py-src-string">&quot;0m2|2M0&quot;</span>)),
+ (<span class="py-src-string">&quot;(.*) is (.*)&quot;</span>,                        <span class="py-src-keyword">lambda</span> <span class="py-src-variable">g</span>: <span class="py-src-variable">addFact</span>(<span class="py-src-variable">g</span>,<span class="py-src-string">&quot;0e1|1e0&quot;</span>)),
+ ...
+</pre><p>Single characters to denote relationships. Lower case letters go one way and upper case the opposite. The meanings are as follows</p><p> &quot;s&quot; is subset, &quot;S&quot; is superset</p><p> &quot;m&quot; is member, &quot;M&quot; is contains</p><p> &quot;e&quot; is equivalent</p><p> &quot;p&quot; is &quot;possess&quot;, &quot;P&quot; is &quot;possessed by&quot;</p><p>If we run the program in debug mode, the function addFact give us more information than just the mysterious &quot;I understand&quot;.</p><pre class="shell">
+: python sir.py
+? debug
+? every man is a person
+  adding fact ('man', 's', 'person')
+  adding fact ('person', 'S', 'man')
+  I understand
+? 
+</pre><p>Things get interesting when we start asking questions. Leaving debug on, watch the following</p><pre class="shell">
+? every man is a person
+  adding fact ('man', 's', 'person')
+  adding fact ('person', 'S', 'man')
+  I understand
+? fred is a man
+  adding fact ('fred', 'm', 'man')
+  adding fact ('man', 'M', 'fred')
+  I understand
+? is fred a person
+  path -  fred  to  person
+    path -  man  to  person
+  Yes e*ms* ['ms']
+? 
+</pre><p>Now &quot;fred&quot; is a member of the set &quot;man&quot; and &quot;man&quot; is a subset of &quot;person&quot;. Finding a path from &quot;fred&quot; to &quot;person&quot; becomes a two step process that we can denote with &quot;ms&quot; (member-subset)</p><p>The rule matching &quot;is fred a person&quot; is</p><pre class="python">
+( <span class="py-src-string">&quot;is (.*) (a|an) (.*)&quot;</span>,   <span class="py-src-keyword">lambda</span> <span class="py-src-variable">g</span>: <span class="py-src-variable">getPath</span>(<span class="py-src-variable">g</span>,<span class="py-src-string">&quot;0e*ms*2&quot;</span>))
+</pre><p>which results in a call to the function &quot;getPath&quot; finding a path from &quot;fred&quot; (g[0]) to &quot;person&quot; (g[2]) using the pattern &quot;e*ms**&quot;. A path &quot;ms&quot; (member-subset) was found to link &quot;fred&quot; to &quot;person&quot;. This is the simplest case for this pattern; there were no &quot;equivalence&quot; or additional &quot;subset&quot; steps necessary.</p><p>Moving along, let's add an equivalence at the front end and another subset on the back end to see the full pattern put to use.</p><pre class="shell">
+?  every person is a creature of god
+    adding fact ('person', 's', 'creature of god')
+    adding fact ('creature of god', 'S', 'person')
+    I understand
+? the big guy is fred
+    adding fact ('the big guy', 'e', 'fred')
+    adding fact ('fred', 'e', 'the big guy')
+    I understand
+? is the big guy a creature of god
+    path -  the big guy  to  creature of god
+      path -  fred  to  creature of god
+        path -  man  to  creature of god
+          path -  person  to  creature of god
+        path -  the big guy  to  creature of god
+    Yes e*ms* ['emss']
+? 
+</pre><h2>Forward and backward paths<a name="auto5"></a></h2><p>Consider the following dialogue from the file <a href="sir.1.txt">sir.1.txt</a></p><pre class="shell">
+$ python sir.py sir.1.txt . 
+bill is a man
+  I understand
+is bill a person
+  Not sure 
+bill owns a porsche
+  I understand
+does any person own a car
+  Not sure 
+a man is a person
+  I understand
+does any person own a car
+  Not sure 
+a porsche is a car
+  I understand
+debug
+does any person own a car
+  path -  person  to  car
+    path -  man  to  car
+      path -  bill  to  car
+        path -  porsche  to  car
+  Yes S*Me*ps* ['SMps']
+</pre><p>Now we can see the reason for adding bidirectional rules. The path is 'SMps'. &quot;person&quot; is a superset of &quot;man&quot;. &quot;man&quot; contains &quot;bill&quot; as a member (M relation), &quot;bill&quot; owns a &quot;porsche&quot;, and finally, &quot;porsche&quot; is a subset of &quot;car&quot;.</p><h2>Efficiency in path searching<a name="auto6"></a></h2><p>The function &quot;path&quot; is recursive and left to its own devices can conduct a very large search. It needs to be controlled a bit. A couple of techniques are used.</p><p>The &quot;used&quot; dictionary at each recursion level keeps the search from getting into a loop. It requires that each relationship added to a path is &quot;fresh&quot;, not used somewhere earlier in the path. The problem is easy to see if we have &quot;Joe is Joseph&quot; and an &quot;e*&quot; in the validation pattern. Then we quickly get &quot;Joe-&gt;Joseph-&gt;Joe-&gt;Joseph...&quot; until we have a stack overflow. The following clips this possibility.</p><pre class="python">
+<span class="py-src-keyword">if</span> <span class="py-src-variable">used</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">fact</span>) : <span class="py-src-keyword">continue</span>
+</pre><p>At each level of recursion &quot;used&quot; carries all the earlier relationships and adds its own. A new dictionary is created and is updated with the preceding relations already used. Backing out again our new entries are forgotten so that other paths may still be explored that use the same relationships in other ways.</p><p>The function &quot;okSoFar&quot; checks that as each relationship is added to the path the pattern is still partially matched. If that is not the case then we have started down a blind alley.</p><p>A final check involves the variable &quot;indent&quot; in the function &quot;path&quot; which grows with each level of recursion. Simply checking that it is not growing too big will eventually abandon any path caught up in an infinite loop.</p><p>With a little unix (linux) magic we can get a feel for the importance of these checks. Let's run the above dialogue but pipe the output to &quot;grep&quot; to filter out all lines not containing the word &quot;path&quot;.</p><pre class="shell">
+$ python sir.py sir.inp . | grep path
+  path -  person  to  car
+    path -  man  to  car
+      path -  bill  to  car
+        path -  porsche  to  car
+</pre><p>Now let's pipe this output to the program &quot;wc&quot; (word count) to see the number of lines</p><pre class="shell">
+ python sir.py sir.inp . | grep path | wc
+      4      20     112
+</pre><p>So, 4 lines, 20 words, 112 characters. If you now comment out the lines</p><pre class="python">
+<span class="py-src-variable">sts</span> = <span class="py-src-variable">okSoFar</span>(<span class="py-src-variable">pat</span>, <span class="py-src-variable">sofar</span>+<span class="py-src-variable">rel</span>)
+<span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">sts</span> : <span class="py-src-keyword">continue</span>
+</pre><p>you will see the 4 lines jump to an 8. If you additionally comment out the line</p><pre class="python">
+<span class="py-src-keyword">if</span> <span class="py-src-variable">used</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">fact</span>) : <span class="py-src-keyword">continue</span>
+</pre><p>you see the 8 jump to 232! The contraints are quite important.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

@@ -1,0 +1,249 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Using Unicode with Python</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Using Unicode with Python</h1><div class="toc"><ol><li><a href="#auto0">Octal and Hexidecimal numbers</a></li><li><a href="#auto1">A look at some encodings</a></li><li><a href="#auto2">Enter Unicode</a></li><li><a href="#auto3">Unicode and Python</a></li><li><a href="#auto4">Encoding Unicode strings</a></li><li><a href="#auto5">New encodings for Unicode</a></li><li><a href="#auto6">Examples of UTF-8 and UTF-16</a></li><li><a href="#auto7">A little application</a></li></ol></div><div class="content"><span></span><p>Computers really work only with numbers; binary numbers. But to communicate
+with people computers had to have some ability to input and output words
+almost from day one.</p><p>The trick has always been to provide a mapping of numbers to characters.
+There were several standards, including EBCDIC by IBM, but
+the Ascii character set emerged as a clear winner in the race for a
+standard by the late 1970's. It provides for 127 characters, of which about
+96 are printable. These include most punctuation characters, decimal
+digits and both the upper and lower case alphabet. In addition, low
+numbers from 0 to 32 are used for control characters such as space, tab,
+and newline.</p><p>Most computers use an 8 bit byte to store a character (or more accurately
+the number representing the character) but there have been exceptions. The
+DEC PDP-10, a timesharing computer we used at the University of Oregon in the 70's,
+had a word size of 36 bits and would store 5 characters per word with a
+bit left over.</p><p>If 8 bit bytes are used to store a character that
+leaves 1 bit unused, effectively doubling
+the number of possible characters. And there are lots of candidates.
+Most European languages need several letters beyond those provided in the
+basic Ascii set, and some like Greek and Russian need entire alphabets.
+Individually, many of these needs can be accomodated but not all at the same
+time. This led to a variety of extensions to Ascii, mutually incompatible.
+We will write a bit of Python code that generates a web page to illustrate this
+in a bit.</p><h2>Octal and Hexidecimal numbers<a name="auto0"></a></h2><p>Computers actually do everything in binary numbers but reading binary
+numbers is hard on people. For example decimal 133 is &quot;01000101&quot; in
+binary (the 3 '1' bits adding up to 128+4+1=133) but one would hardly
+know to look at it. Humans
+process information better in fewer but bigger chunks. Octal and
+hexidecimal numbers are a convenient compromise. We get smaller chunkier
+numbers that still let us see the binary pattern in the number.</p><p>Octal (base 8) uses the digits 0-7 and is directly transformed from
+binary 3 bits at a time. Octal became popular since several early
+computers with 16 bit word size, used 3 bit fields for fields within
+a machine instruction. In the PDP-11, for example, 0001000101000011 moves the
+contents of register 5 to register 3. If this number is first chunked
+into 0 001 000 101 000 011 it becomes 010503 in octal. The fields are
+01=move; 05 and 03 are the registers.
+In hexidecimal the same number chunks into 0001 0001 0100 0011 and
+is represented by 1143. That's not as useful.</p><p>Other computers use 4 bit chunks for fields. The DEC VAX-11 which basically
+replaced the PDP-11 over time has a 32 bit word size. It
+has 16 registers instead of the 8 on the PDP-11. So hexidecimal
+is a natural choise to represent Vax instructions. Hexidecimal needs
+16 digits and uses 0-9 plus A-F (either case).</p><p>Both octal and hexidecimal may be used to represent 1 byte characters.
+In Python any character, especially a non-printing character may be
+input to a string by using its 3 digit octal value following a '\'. It may
+also be input with its 2 digit hexidecimal value following a '\x'.
+Python displays non-printing characters in a string in either format with
+newer versions of Python preferring hexidecimal and older versions octal.</p><pre class="python-interpreter">
+&gt;&gt;&gt; a = '\x41bc'
+&gt;&gt;&gt; a
+'Abc'
+&gt;&gt;&gt; '\x10bc'
+'\020bc'
+&gt;&gt;&gt;
+</pre><p>For character data I find hexidecimal better. Exactly 2 digits
+are needed for a byte and if a number occupies multiple bytes the digits
+break evenly on the byte boundaries. We will stick with hexidecimal in
+this tutorial.</p><h2>A look at some encodings<a name="auto1"></a></h2><p>Different encodings are just different mappings of numbers to characters.
+Many go by &quot;ISO-8859-x&quot; where &quot;x&quot; is 1 to 15 or so. These encodings generally
+also have a more common name such as &quot;Ascii&quot;, &quot;Latin-1&quot;, &quot;Nordic&quot;, etc.</p><p>The following <a href="table.py">program table.py</a> creates a
+small web page with a table. The table
+is 16x16 cells, each containing a character and its corresponding hexidecimal
+value. Load <a href="table.html">table.html</a> into your browser,
+either Netscape, Mozilla or
+Internet Explorer. (Warning: Opera has problems with foreign character sets)
+Next go to the view menu and choose &quot;character encoding&quot; if you
+are using Netscape, &quot;encoding&quot; if Internet Explorer or &quot;character coding&quot;
+for Mozilla. Select various 8 bit sets such as ISO-8859-1, ISO-8859-15,
+Cyrllic (windows), Greek etc. Don't worry about UTF-8 or UTF-16
+if you see them on the menu. Just ignore them for now.</p><p>As you select alternate encodings,
+notice how the first half of the table stays the same but
+how the second half (hex 80-ff) changes quite a bit from one encoding to
+another. For example, You may find that
+hexidecimal &quot;DF&quot; is the Russian letter <strong>Я</strong> in ISO-8859-5 or
+&quot;Cyrillic&quot; but something else in another encoding.</p><p>With these 8 bit encodings it is possible to
+mix English with one or more other european languages, but not two
+foreign languages together. It is also difficult for the software to keep
+track of which encoding is in use in a particular document.</p><p>An entirely different problem comes up with languages like
+Chinese and Japanese which use thousands of characters
+within a single language.</p><p><h2>Enter Unicode<a name="auto2"></a></h2></p><p>There is a simple and obvious way to get around all of this. Stop trying
+to cram all of the characters in all of the worlds languages into 8 bits.
+Basically, Unicode uses 16 bit numbers to assign a unique number to every
+character in every alpabet. 16 bits yields 65536 possible values.
+With Unicode you can have Russian, Greek and any other language all
+in the same document with no confusion.</p><p>For convenience Unicode uses the values 00-7f for the same charaters
+as Ascii. In addition, the character values 80-ff match those in the
+iso-8859-1 encoding.</p><p>You can find out everything about Unicode <a href="http://www.unicode.org">here</a>.
+Click on &quot;Charts&quot; to see whole sets of encodings.</p><h2>Unicode and Python<a name="auto3"></a></h2><p>Python supports Unicode strings whose individual characters are 16 bits.
+A Unicode string literal is preceded with a 'u'. For example</p><pre class="python-interpreter">
+&gt;&gt;&gt; a = u'abcd'
+&gt;&gt;&gt; print a
+abcd
+</pre><p>Characters in the Unicode string may be simple Ascii characters which map
+to Unicode characters with the same value or they may be extended characters.
+Any extended character (whose value is greater than 0x7F) may be input with
+the string '\uxxxx' where xxxx is a 4 digit hexidecimal number. Python
+will display it in the same format. For example</p><pre class="python-interpreter">
+&gt;&gt;&gt; a = u'abc\uabcd'
+&gt;&gt;&gt; a
+u'abc\uABCD'
+&gt;&gt;&gt; len(a)
+4
+&gt;&gt;&gt; a[2]
+u'c'
+&gt;&gt;&gt; a[3]
+u'\uABCD'
+&gt;&gt;&gt;
+</pre><p>The hexidecimal number 'ABCD' above is a single character. Unfortunately
+we can't see directly what character in what language it represents from
+Python's interactive mode. However we'll see how to view it shortly in a web
+browser.</p><p>There are some Python builtin functions for Unicode. The function 
+<code>unicode</code> will
+convert 8 bit encodings into Unicode. It takes 2 arguments, a normal string
+with 8 bit characters and a string describing the encoding. For example</p><pre class="python-interpreter">
+&gt;&gt;&gt; a = 'abc\x81'
+&gt;&gt;&gt; unicode(a, 'iso-8859-1')
+u'abc\x81'
+&gt;&gt;&gt;
+</pre><p>The function converts a string of 8-bit character to one of 16-bit characters.
+The result is the corresponding Unicode string. If the encoding is 'ascii' then the
+function will complain if any character is above 7F hex.</p><pre class="python-interpreter">
+&gt;&gt;&gt; unicode(a, 'ascii')
+Traceback (most recent call last):
+File &quot;&lt;stdin&gt;&quot;, line 1, in ?
+UnicodeError: ASCII decoding error: ordinal not in range(128)
+</pre><p>Now consider the following</p><pre class="python-interpreter">
+&gt;&gt;&gt; unicode('abc\xe4', 'iso-8859-1')
+u'abc\xe4'
+&gt;&gt;&gt; unicode('abc\xe4', 'iso-8859-5')
+u'abc\u0444'
+</pre><p>In the iso-8859-1 encoding (Central European) the 8 bit character is mapped
+to the same value in Unicode (hex e4) which represents
+the character &quot;<strong>ä</strong>&quot; but in iso-8859-5 \xe4 is mapped to Unicode
+\x0444 which represents the russian character &quot;<strong>я</strong>&quot;.
+
+The second argument in the unicode function call may be omitted if it is
+'Ascii'.</p><p>With ordinary strings two functions convert a single character string to
+and from its numeric value. The function &quot;ord&quot; works with both ordinary
+and Unicode strings returning the numeric value of a character.</p><pre class="python-interpreter">
+&gt;&gt;&gt; print ord(u'A')
+65
+&gt;&gt;&gt; print ord(u'\u0444')
+1092
+</pre><p>The inverse function for ordinary strings is &quot;chr&quot; which returns a
+string of length one for a numeric value in the range 0-255. A new
+function &quot;unichr&quot; returns a Unicode string of length one for a number
+value 0-65535.</p><pre class="python-interpreter">
+&gt;&gt;&gt; chr(0xef)
+'\357'
+&gt;&gt;&gt; unichr(1092)
+u'\u0444'
+</pre><p>There is much more support built into Python for Unicode strings.
+The &quot;string&quot; module will split, join, strip, etc Unicode strings just
+like ordinary strings. In fact you can mix them much like you might mix
+intergers and longs in numeric expressions. Python will first convert
+the ordinary string into a (more general) Unicode string and then perform
+the operation requested. Here is an example of splitting and joining
+strings.</p><pre class="python-interpreter">
+&gt;&gt;&gt; a = u'abcd:efg'
+&gt;&gt;&gt; string.split(a, u':')
+[u'abcd', u'efg']
+&gt;&gt;&gt; string.join(['abcd',u'efg'],':')
+u'abcd:efg'
+&gt;&gt;&gt; a == 'abcd:efg'
+1
+</pre><p>This also works with other modules like &quot;re&quot; that deal with strings.</p><p><h2>Encoding Unicode strings<a name="auto4"></a></h2></p><p>The inverse of the <code>unicode</code> function is to
+invoke the <code>encode</code> method on
+a Unicode string. The result is an ordinary string in the 8 bit encoding.
+Unicode strings are objects. Here is an example.</p><pre class="python-interpreter">
+&gt;&gt;&gt; a = u'abcd\u0444'
+&gt;&gt;&gt; a.encode('iso-8859-5')
+'abcd\344'
+&gt;&gt;&gt;
+</pre>
+
+
+Remember that in Unicode 0x444 is the Russian character &quot;<strong>я</strong>&quot;
+<p>and corresponds to 0xe4 in 8 bit iso-8859-5.</p><h2>New encodings for Unicode<a name="auto5"></a></h2><p>Files on the disk consist of byte streams, 8 bits each, and
+in order to handle Unicode in a file we need to use more than
+one byte per character. The two most common encodings are &quot;utf-16&quot; and &quot;utf-8&quot;,
+each with some advantages.</p><p>Utf-16 simply
+represents Unicode values in two bytes each. So our Unicode character
+&quot;<strong>я</strong>&quot;=u&quot;\u0444&quot; becomes 0x04 0x44 in utf-16. Or possibly
+0x44 0x04. The first is in big endian and
+the second in little endian format. Which one is being used is determined
+by the first two bytes of a Utf-16 string (or file). They are either
+0xFF 0xFE or 0xFE 0xFF.</p><p>Utf-16 is a good encoding to use for Japanese or Chinese with their huge
+character sets since 2 bytes per character is good fit. But it's not so good
+for English or most other european languages.
+With English alternate bytes are basically Ascii and zeros in between.
+So half the space is wasted.</p><p>Utf-8 encoding is very effective in dealing with this. Utf-8 encodes
+a Unicode character in one or more bytes, but only as many as are needed
+to represent characters number. For normal Ascii characters that is a
+single byte. So Utf-8 strings and files containing only characters 0-7f
+are exactly the same. Above that range Utf-8 uses its own values which are
+carefully chosen so that it can be determined exactly how many bytes
+to grab for the next character. If the first
+byte is 0x80 or above at least one more byte will follow and depending
+on the value in the 2nd byte a third byte might follow and so on. For
+example the Korean character represented in Unicode as u'\uC5D0' is
+the 3 byte sequence 0xec 0x97 0x90 in Utf-8.</p><p>So you can see that Utf-8 is more compact for european languages
+where most characters require a single byte except where two bytes are required
+for accents, umlauts, etc. But if most or all of the text is in Chinese
+then Utf-16 with 2 bytes per character will beat Utf-8 for compactness.</p><p><h2>Examples of UTF-8 and UTF-16<a name="auto6"></a></h2></p><p>Sometimes the best way to understand something is to simply see some
+examples. Lets start with a little <a href="japan.html">piece</a> of UTF-16
+which contains both
+Ascii characters and some japanese characters. With the aid of a little
+program <a href="decode.py">decode.py</a>
+we can look at the file byte by byte. The program replaces
+bytes with value 0 (about half) with a '.' and bytes above 0x80 with their
+hexidecimal value bracketed by '-'s. The <a href="japan.txt">result</a>
+may be viewed without the html being interpreted by the browser. The english
+part is fairly readable.</p><p>Notice that the first two bytes are 0xFF an 0xFE which specify the byte
+order of all the characters to come. The Ascii compatible characters have
+their Ascii value in the first byte and zero in the  following byte.</p><p>Notice the meta tag contains 'content=&quot;text/html; charset=&quot;utf-16&quot;'. This
+is picked up by the browser and controls how the page is interpreted.
+Without it the page does not display.</p><p>Notice too, that when we get into the japanese characters themselves
+there are no &quot;zero&quot; bytes. The first character is &quot;S0&quot; (the character zero,
+not the value), which together make the hexidecimal value 0x3053
+which is the Japanese hiragana <strong>こ</strong>.</p><p>Utf-8 is really the more interesting of the two common Unicode encodings.
+Our little <a href="decode.py">decode.py</a> works fine for utf-8 as well.
+Here a sample in <a href="sample.html">html</a> and the same text
+<a href="sample.txt">decoded</a>. Thanks to &quot;Joel on Software&quot; from whose
+pages I lifted little snippets. Check out his Unicode writeup
+<a href="http://www.joelonsoftware.com/articles/Unicode.html">here</a>.</p><p><h2>A little application<a name="auto7"></a></h2></p><p>I enjoy foreign languages but my keyboard is standard American. In order
+to type Russian or even German I would normally have to jump through some
+hoops. But here's some code to make it a bit easier.</p><p>In German the special characters <strong>ä, ö, ü and ß</strong> may
+be represented by the pairs <strong>ae, oe, ue and ss</strong>. This is an old trick
+that dates back to Morse code, I believe, and is how I generally type
+German. With a small table <a href="german.py">german.py</a> and a Python
+program <a href="utf8.py">utf8.py</a> any string with such pairs will be
+transformed into a utf-8 string with these pairs properly encoded.</p><p>The program transforms stdin to stdout looking for text between pairs of
+xml tags (&lt;german&gt;...&lt;/german&gt;, &lt;russian&gt;...&lt;/russian&gt; and &lt;unicode&gt;.&lt;/unicode&gt;).
+In the case of german and russian any amount of text can be transformed. With
+the &quot;unicode&quot; tag only a single 4 digit hex unicode value is
+encoded to utf-8. In addition, the meta tag with 'charset=&quot;utf-16&quot;' is inserted into
+the header so your browser interpretes the codes correctly.</p><p>The function <code>encode</code>imports <code>table</code>
+from a module passed or, if no module is passed, translates a single
+Unicode character into utf-8. Besides german, the table
+<a href="russian.py">russian.py</a> lets me type russian in semi-phonetic
+latin characters like <strong>Ya nye znal yego ochyen khorosho</strong> (I didn't
+know him very well) and have it come out
+<strong>Я не знал его очен кhорошо</strong>. (Actually, I'm missing a
+soft sound at the end of <strong>очен</strong>.)
+
+Incidentally, If you do a &quot;view source&quot; on this page you will see that
+it is utf-8 and in fact I used this program to convert this writeup from
+its original html (generated from lore) into what you are now viewing.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2004-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

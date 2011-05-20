@@ -1,0 +1,234 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Prolog in Python. Version 1</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Prolog in Python. Version 1</h1><div class="toc"><ol><li><a href="#auto0">Nature of a prolog program</a></li><li><a href="#auto1">How it works</a></li><li><a href="#auto2">A look the code</a></li><li><a href="#auto3">The Term and Rule Classes</a></li><li><a href="#auto4">The Goal class</a></li><li><a href="#auto5">Searching for goals</a></li><li><a href="#auto6">The main program</a></li><li><a href="#auto7">An example with Trace</a></li></ol></div><div class="content"><span></span><h2>Nature of a prolog program<a name="auto0"></a></h2><p>With &quot;normal&quot; programming languages a program consists of statements telling the computer
+how to solve a problem step by step. A Prolog program is different. Facts and
+rules define the boundarys for a solution (or set of solutions) to queries
+issued by the user and Prolog searches for solutions automatically.</p><p>This will become clearer with some examples. Suppose we have some facts about some
+relationships between people and some rules that let us infer more relationships.
+Facts might be statements like &quot;Bill is a boy&quot; and &quot;Bills mother is Alice&quot;. A rule
+might let us infer from these two statements that &quot;Bill is Alice's son&quot; or that
+&quot;Alice has children&quot;.</p><p>In Prolog facts are represented in a syntax that will remind you of a function calls.
+To indicate that Bill is a boy we would create the following &quot;term&quot;.</p><pre class="shell">
+boy(bill)
+</pre><p>It would also be possible to use the term &quot;bill(boy)&quot; but that wouldn't be as useful
+because of the kind of questions we will want to ask. It is also important to remember
+that &quot;boy(bill)&quot; is NOT a function call but simply a statement about a relation.
+Also note that &quot;bill&quot; is not capitalized. This is because Prolog generally uses
+capitalized words as variables and lowercase words as constants. Bill is a constant
+just because Bill will always be Bill.</p><p>To represent the fact that Bill's mother is Alice we could use the term</p><pre class="shell">
+mother(alice,bill)
+</pre><p>indicating the &quot;mother&quot; relationship between alice and bill, that is &quot;alice is the
+mother of bill&quot;. It would be fine to write the term as &quot;mother(bill,alice)&quot; meaning
+&quot;Bill's mother is Alice&quot; as long as we are consistant. Prolog does
+not deduce any deep meaning from our facts and rules. It just manipulates them
+to answer our questions.</p><p>Let's stick with &quot;boy(bill)&quot; and &quot;mother(alice,bill)&quot;. Now we can create a rule
+that means &quot;If X is the mother of Y, then Y is the child of X&quot;. Here's how such
+a rule might be written.</p><pre class="shell">
+child(X,Y) :- mother(Y,X)
+</pre><p>where the &quot;deep meaning&quot; of child(X,Y) is &quot;X is a child of Y&quot;.
+Notice that X and Y are captialized indicating they are variables. Rules will generally
+have variables. Also notice that the order is reversed from our &quot;if&quot; statement above. The
+part to the left of the &quot;:-&quot; is called the head and the part to the right is
+the body whcih consists of one or more &quot;goals&quot; to be satisfied. Here is another rule.</p><pre class="shell">
+child(X,Y) :- father(Y,X)
+</pre><p>and finally</p><pre class="shell">
+son(X,Y) :- child(X,Y),boy(X)
+</pre><p>which says that X is the son of Y if X is the child of Y and X is a boy. Notice that
+the body has two terms separated by a comma. Both terms in the body must be satisfied
+to make the head term true.</p><p>A Prolog program consists of an ordered set of facts and rules in what is termed the
+&quot;database&quot;. Let's play with the program a bit before looking at the Python code.</p><pre class="shell">
+? boy(bill)
+? boy(frank)
+? mother(alice,bill)
+</pre><p>Here we have entered three facts into the database. Even now we can query them.
+A query is simply a term followed by the '?' mark.</p><pre class="shell">
+? boy(bob)?
+? boy(bill)?
+Yes
+? boy(X)?
+{'X': 'frank'}
+{'X': 'bill'}
+? mother(X,bill)?
+{'X': 'alice'}
+? mother(alice,X)?
+{'X': 'bill'}
+? mother(X,Y)?
+{'X': 'alice', 'Y': 'bill'}
+</pre><p>Asking if bob is a boy gave no response (meaning No). Asking if bill is a boy gives
+the answer &quot;Yes&quot; since the rule &quot;boy(bill)&quot; is in the database. The query &quot;boy(X)?&quot; means we
+want Prolog to find all values of X for which boy(X) is a fact in the database.
+The query matches both &quot;boy(bill)&quot; and &quot;boy(frank)&quot; setting the variable X and reporting it
+for each. Now look at all the questions we can ask about the single
+fact that alice is the mother of bill.
+We can ask &quot;Is anyone (X) bill's mother?&quot;, &quot;Is alice the mother
+of anyone?&quot; and even &quot;Is anyone the mother of anyone else?&quot;</p><p>When variables are set they are displayed in a format that should be familiar. You may have
+already guessed that our little Prolog interpreter stores variable settings
+in a Python dictionary,</p><p>Next let's add the two rules above and extend our querys.</p><pre class="shell">
+? child(J,K) :- mother(K,J)
+? son(X,Y) :- child(X,Y),boy(X)
+? son(X,alice)?
+{'X': 'bill'}
+</pre><p>You might be wondering why I used variables &quot;J&quot; and &quot;K&quot; instead of &quot;X&quot; and
+&quot;Y&quot;. Either is fine. Like local variables in Python functions, the variables
+are local to the rule. But a little later I want to walk through a query
+in detail without the confusion of separate variables with the same name.</p><p>Now let's add some information about dads.</p><pre class="shell">
+? child(G,H) :- father(H,G)
+? father(alex,bill)
+? son(bill,X)?
+{'X': 'alex'}
+{'X': 'alice'}
+</pre><h2>How it works<a name="auto1"></a></h2><p>Let's look more closely at how queries are processed in order to be ready to look at the
+Python code. The first thing to do is to nail down some terminology.</p><p>Terms like &quot;boy(bill)&quot; consist of a predicate (boy) and one or more arguments (bill). Each
+argument can be (for now!) a constant (lower case) or a variable (capitalized). A rule consists
+of a head term and a set of goal terms, each of which must be satisfied in order for the rule
+to succeed.</p><p>A query is a term matched against facts and rules in the database.
+With the database as we have loaded it, the query &quot;boy(X)?&quot;
+matches both &quot;boy(bill)&quot; and &quot;boy(frank)&quot; since X is a variable which can be set (unified) to
+either &quot;bill&quot; or &quot;frank&quot;. In general two terms will match if their predicates match and each of
+their arguments match. Arguments fail to
+match if they are different constants or variables set to different constants. Unset variables
+are set by this matching process. This unification process works in both
+directions; as queries are applied to rules and as results are returned.
+With the simple query &quot;boy(bill)?&quot; a match was found without needing to set any variables.
+As success is achieved, Prolog answers our query by showing how variables were set, or if no
+variables were set, simply with the word &quot;yes&quot;.</p><p>Let's look a query in more detail. The following is a tree diagram showing how one
+query will spawn subqueries with constraints imposed by unification.</p><p><img src="tree1.gif" /></p><p>The results of the query &quot;son(bill,A)?&quot; will be &quot;A=alice&quot; and &quot;A=alex&quot;. But let's take it
+step by step. We have a search tree and as we both descend and return (ascend) the tree, variables will be set through unification. The goal &quot;son(bill,A)&quot; spawns a subgoal &quot;son(bill,Y) :- child(bill,Y), boy(bill)&quot; where we have just set the
+variable X to bill. Next &quot;child(bill,Y)&quot; will spawn &quot;mother(K,bill)&quot; and &quot;father(H,bill)&quot;, setting variables J and G.
+&quot;mother(K,bill)&quot; finds a solution, setting k to &quot;alice&quot;. Now we ascend the tree, setting Y to &quot;alice&quot; and resuming the goal
+ &quot;son(bill,Y) :- child(bill,alice), boy(bill)&quot; to attack the second part &quot;boy(bill&quot;. This succeeds (no variables set) and we
+hit the top of the tree setting A to &quot;alice&quot;. Then we descend again to find &quot;alex&quot; as a second answer to the query.</p><h2>A look the code<a name="auto2"></a></h2><p>Having walked through a non trivial example, we're now in a position to see how the
+two pages of code come together. <a href="prolog1.py">Click here</a> to access the Python
+and perhaps get a printout. Since I'll refer to line numbers in the code it might be
+most convenient to have it in a text editor where navigation by line number is easy.</p><p>In the Python code terms and rules are represented by classes which
+really just hold their attributes. They each support just two methods, an initializer
+to compile a string representation of the term or rule the __repr__ method to
+display it.</p><h2>The Term and Rule Classes<a name="auto3"></a></h2><p>Let's play with the Term class.</p><pre class="shell">
+&gt;&gt;&gt; import prolog1 as prolog
+&gt;&gt;&gt; a = prolog.Term(&quot;mother(alice,bill)&quot;)
+&gt;&gt;&gt; a
+mother(alice,bill)
+&gt;&gt;&gt; a.pred
+'mother'
+&gt;&gt;&gt; a.args
+['alice', 'bill']
+</pre><p>Here the __init__ method (line 16) has compiled the string &quot;mother(alice,bill)&quot; into a Term
+instance with a predicate and arguments. These are represented by Python strings.
+The __init__ method uses the 'split' function in the string module to split fields on '('
+or ',' characters. The input string has had all whitespace removed. (line 64)</p><p>Let's try a compilation of a rule</p><pre class="shell">
+&gt;&gt;&gt; b = prolog.Rule(&quot;son(X,Y):-mother(Y,X),boy(X)&quot;)
+&gt;&gt;&gt; b
+son(X,Y) :- mother(Y,X),boy(X)
+&gt;&gt;&gt; b.head
+son(X,Y)
+&gt;&gt;&gt; b.goals
+[mother(Y,X), boy(X)]
+&gt;&gt;&gt;
+</pre><p>A rule is made up of a head term and a list of goal terms. In the __init__
+function (line 27) 'split' is again used to cut up the pieces. However re.sub
+first changes &quot;son(X,Y):-mother(Y,X),boy(X)&quot; to
+&quot;son(X,Y):-mother(Y,X);boy(X)&quot; so that terms in the body can be easily
+split around the ';' character.</p><p>Let's look at the 'unify' function now (line 92). 'Unify' takes four arguments; a source
+term and environment, and a destination term and environment. If unification is
+successful the destination environment may be updated. Both environments are
+just dictionaries with variable bindings. Unify will return 1 if successful,
+otherwise 0. </p><p>The code should be straight forward, although it will not stay so simple in the later
+versions of our program as the definition of a term becomes more general. Notice the use
+of the dictionary get method to try to resolve a variable in its own enviroment. If the
+variable is not set, &quot;get&quot; will return None, which can indicate permission to set the
+variable.</p><pre class="shell">
+&gt;&gt;&gt; from prolog1 import *
+&gt;&gt;&gt; unify(Term(&quot;boy(bill)&quot;),{},Term(&quot;boy(frank)&quot;),{})
+0
+&gt;&gt;&gt; e = {}
+&gt;&gt;&gt; unify(Term(&quot;boy(bill)&quot;),{},Term(&quot;boy(bill)&quot;),e)
+1
+&gt;&gt;&gt; e
+{}
+</pre><p>Here we can see that different terms do not unify but two copies of the
+same term do. Since there were no variables nothing was set in the
+destination environment 'e'.</p><p>Let's try something a little more complex.</p><pre class="shell">
+&gt;&gt;&gt; e = {}
+&gt;&gt;&gt; unify(Term(&quot;boy(bill)&quot;),{},Term(&quot;boy(X)&quot;),e)
+1
+&gt;&gt;&gt; e
+{'X': 'bill'}
+</pre><p>This time the variable X is set in the destination environment. If we now try..</p><pre class="shell">
+&gt;&gt;&gt; e = {'X': 'bill'}
+&gt;&gt;&gt; unify(Term(&quot;boy(frank)&quot;),{},Term(&quot;boy(X)&quot;),e)
+0
+&gt;&gt;&gt; e
+{'X': 'bill'}
+</pre><p>It fails because X was already set to 'bill'. Source arguments may also be
+variables. Let's look at a couple of situations.</p><pre class="shell">
+&gt;&gt;&gt;
+&gt;&gt;&gt; e = {}
+&gt;&gt;&gt; unify(Term(&quot;boy(G)&quot;),{},Term(&quot;boy(X)&quot;),e)
+1
+&gt;&gt;&gt; e
+{}
+</pre><p>Here unification succeeded but the variable X was not set since G has not
+yet been set. However if we do set G then X will be set.</p><pre class="shell">
+&gt;&gt;&gt; e = {}
+&gt;&gt;&gt; unify(Term(&quot;boy(G)&quot;),{'G':'frank'},Term(&quot;boy(X)&quot;),e)
+1
+&gt;&gt;&gt; e
+{'X': 'frank'}
+</pre><h2>The Goal class<a name="auto4"></a></h2><p>A Goal object is a bit of a misnomer but I can't think of any better name. A goal
+is a rule, some of whose subgoals may have been matched and variables set. In the
+tree diagram above, each branch and node represents a goal. Except for our
+original query, each goal has a parent goal.
+The attributes of a Goal object are the rule, parent, environment and an index which
+indicates which subgoal of the rule needs to be matched next.</p><p>When a Goal object is created (line 43) it is vital that its environment is completely
+independent of another goal. We don't want to be sharing dictionaries here! That's
+why copy.deepcopy() (line 50) is used to create a completely independent environments.</p><h2>Searching for goals<a name="auto5"></a></h2><p>Let's look at the search function next. Search will work with a stack of goals. 
+Our query (a term) is converted into
+a rule that then is used to create a Goal object that is in turn used to initialize
+the stack. (line 117)</p><p>Until the stack is empty goals are popped off the top and matched to facts and
+rules in the database (line 136). When all goals in a rule succeed the parent goal is resumed,
+actually a copy is stacked anew where it was left off. Where a goal requires a
+rule in the database to be satisfied, a child goal is started. In both cases
+unification is applied to make (or update) the environment and the new goal is
+stacked for processing.</p><p>Whenever the original goal (no parent) is found, results are printed (line 123). If variables have
+been set, they are output. Otherwise the program simply replies &quot;Yes&quot;.</p><p>Now, you may be wondering (and probably should be!) why we need a stack for processing. Why not instead simply
+make &quot;search&quot; a recursive function? Well, it won't work. In fact, I tried that at first. But the nature of
+prolog is that a &quot;call&quot; to &quot;search&quot; would need to &quot;return&quot; multiple times (or none), once for each solution found.
+Our Python functions just can't do that.</p><h2>The main program<a name="auto6"></a></h2><p>This program is set up to process statements (and queries) from any files on the
+command line and then to interact in the same fashion with the user. Interaction with
+the user may be turned off by using '.' (meaning STOP) as the last filename. Within
+a file lines starting with '#' are comments. The command &quot;trace=1&quot; will turn on the
+trace feature. When trace is on
+a line is printed by &quot;search&quot; each time a goal is stacked or popped from the stack.
+The command &quot;dump?&quot; will display the database. Otherwise if the line ends with a
+'?' it is assumed to be query; if not, it must be a rule or fact to be added to
+the database. Rules and facts may optionally end with a period.</p><h2>An example with Trace<a name="auto7"></a></h2><p> Here is a non-trivial example that shows the trace feature.</p><pre class="shell">
+? child(X) :- boy(X).
+? child(X) :- girl(X).
+? girl(alice).
+? boy(alex).
+? trace=1.
+? child(Q)?
+search child(Q)
+stack Goal 1 rule=got(goal) :- child(Q) inx=0 env={}
+  pop Goal 1 rule=got(goal) :- child(Q) inx=0 env={}
+stack Goal 2 rule=child(X) :- boy(X) inx=0 env={}
+stack Goal 3 rule=child(X) :- girl(X) inx=0 env={}
+  pop Goal 3 rule=child(X) :- girl(X) inx=0 env={}
+stack Goal 4 rule=girl(alice) inx=0 env={}
+  pop Goal 4 rule=girl(alice) inx=0 env={}
+stack Goal 3 rule=child(X) :- girl(X) inx=1 env={'X': 'alice'}
+  pop Goal 3 rule=child(X) :- girl(X) inx=1 env={'X': 'alice'}
+stack Goal 1 rule=got(goal) :- child(Q) inx=1 env={'Q': 'alice'}
+  pop Goal 1 rule=got(goal) :- child(Q) inx=1 env={'Q': 'alice'}
+{'Q': 'alice'}
+  pop Goal 2 rule=child(X) :- boy(X) inx=0 env={}
+stack Goal 5 rule=boy(alex) inx=0 env={}
+  pop Goal 5 rule=boy(alex) inx=0 env={}
+stack Goal 2 rule=child(X) :- boy(X) inx=1 env={'X': 'alex'}
+  pop Goal 2 rule=child(X) :- boy(X) inx=1 env={'X': 'alex'}
+stack Goal 1 rule=got(goal) :- child(Q) inx=1 env={'Q': 'alex'}
+  pop Goal 1 rule=got(goal) :- child(Q) inx=1 env={'Q': 'alex'}
+{'Q': 'alex'}
+</pre>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

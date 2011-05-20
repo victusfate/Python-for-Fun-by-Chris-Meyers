@@ -1,0 +1,208 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Using an SQL database with our GUI</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Using an SQL database with our GUI</h1><div class="toc"><ol><li><a href="#auto0">Just enough SQL</a></li><li><a href="#auto1">Creating our table</a></li><li><a href="#auto2">Inserting data into the table</a></li><li><a href="#auto3">Accessing data in the table</a></li><li><a href="#auto4">Updating data in the table</a></li><li><a href="#auto5">Deleting rows from the table</a></li><li><a href="#auto6">Python and MySQL</a></li><li><a href="#auto7">Adapting our GUI for SQL</a></li></ol></div><div class="content"><span></span><p>In the previous tutorial we kept our phone list data in a python module that
+was simply imported. The phone list was a list of lists where each sublist
+contained the name and phone number.</p><p>This was very convenient when keeping the code as small as possible is the
+primary concern. The Python compiler becomes the parser for the input data
+and the &quot;str&quot; function can format the entire phonelist in order to write
+it back to the disc.</p><p>Another simple way to store the phone list might be in a text file with one
+entry per line. This would require more code of our own to convert this
+file to (and from) the internal format but would be useful in other ways.
+For one it would be easier to edit with a standard text editor like emacs
+or vi. For another, simple utilities like &quot;grep&quot; could be used for rapid
+searching from a command line. That is unless the phone list grows to the
+size of a phone book.</p><p>For more sophisticated data storage we need more. If several people are
+using our GUI at the same time to update phone numbers, we would like to
+see those changes immediately and have the changes made by one person
+not interfere with those of another. If two people pull up the phone list
+and make changes to seperate records, the second person to save the phone list
+back to the disc will wipe out the change made by the first person.</p><p>SQL databases will synchornize update and offer many other features besides.</p><p>We'll look at a very simple example of using Mysql with our phone list.
+Another tutorial is available oriented around <a href="../sql/sql.html">
+PostSql</a></p><p><h2>Just enough SQL<a name="auto0"></a></h2></p><p>Mysql, like other database systems, is a client/server application. The
+server program (or daemon) is called &quot;mysqld&quot; and it actually does all of
+reading and writing to the disc. Client programs then request actions from
+the daemon, such as inserting, updating, deleting or just searching for
+data.</p><p>A standard client, the program &quot;mysql&quot;, lets you interact directly with the
+database daemon thru the keyboard or other <code>stdin</code> input.</p><p>A database consists of tables which in turn consists of rows and columns.
+Columns in a table are fields such as &quot;name&quot; and &quot;phone&quot;. Each column has
+a datatype such as varchar (roughly equivalent to a Python string but with
+a maximum length) or integer. For our gui we are going to make a table
+called &quot;phones&quot; with 2 varchar columns called &quot;name&quot; and &quot;phone&quot;. Our table
+will be part of the database &quot;test&quot; which comes built-in.</p><p>Unless the mysql daemon is already running you may have to start it. If you
+get an error message when running mysql, check with your system administrator.</p><pre class="shell">
+mysql&gt;use test;
+mysql&gt;show tables;
+Empty Set (0.00 sec)
+</pre><p>The commands requested the daemon to use the &quot;test&quot; database and then
+to show tables in the test database. Since we haven't created any (nor has
+anyone else) it is currently empty.</p><p><h2>Creating our table<a name="auto1"></a></h2></p><p>Creating a table involves listing the name and type of each column.</p><pre class="shell">
+mysql&gt; create table phones (id int, name varchar(20), phone varchar(12));
+</pre><p>Our table &quot;phones&quot; has 3 fields; id, name, and phone. The
+integer &quot;id&quot; field will be used as a handle on a row. All rows will be
+assigned a unique id, just increasing numbers. It will become clearer why
+this is a good idea as we proceed. Once our table is created the &quot;describe&quot;
+command shows off its structure. Don't worry about the last 4 columns.</p><pre class="shell">
+mysql&gt; describe phones;
+
++-------+-------------+------+-----+---------+-------+
+| Field | Type        | Null | Key | Default | Extra |
++-------+-------------+------+-----+---------+-------+
+| id    | int(11)     | YES  |     | NULL    |       |
+| name  | varchar(20) | YES  |     | NULL    |       |
+| phone | varchar(12) | YES  |     | NULL    |       |
++-------+-------------+------+-----+---------+-------+
+3 rows in set (0.11 sec)
+</pre><p><h2>Inserting data into the table<a name="auto2"></a></h2></p><p>The SQL insert command lets us populate the table with rows. Here is an
+example.</p><pre class="shell">
+insert into  phones values (1,'Meyers, Chris',  '343-4349');
+</pre><p>We supply values for id, name and phone. Incidentally there is another
+format for the insert command where only designated columns are set and
+other columns are set to a default value or null (equivalent to None
+in Python).</p><p>The files <a href="phones.sql">phones.sql</a> contains commands to create the
+database and populate it with insert commands. It may be piped to the client
+program &quot;mysql&quot; to initialize the database table.</p><pre class="shell">
+mysql &lt;phones.sql
+</pre><p><h2>Accessing data in the table<a name="auto3"></a></h2></p><p>The SQL select command lets us find data we are interested in. The simplest
+format will dump the entire table.</p><pre class="shell">
+mysql&gt; select * from phones;
++------+-----------------+----------+
+| id   | name            | phone    |
++------+-----------------+----------+
+|    1 | Meyers, Chris   | 343-4349 |
+|    2 | Smith, Robert   | 689-1234 |
+|    3 | Jones, Janet    | 483-5432 |
+|    4 | Barnhart, Ralph | 683-2341 |
+|    5 | Nelson, Eric    | 485-2689 |
+|    6 | Prefect, Ford   | 987-6543 |
+|    7 | Zigler, Mary    | 567-8901 |
+|    8 | Smith, Bob      | 689-1234 |
++------+-----------------+----------+
+8 rows in set (0.11 sec)
+</pre><p>But we can be more restrictive by using a &quot;where&quot; clause. For example.</p><pre class="shell">
+mysql&gt; select * from phones where id=6;
++------+---------------+----------+
+| id   | name          | phone    |
++------+---------------+----------+
+|    6 | Prefect, Ford | 987-6543 |
++------+---------------+----------+
+1 row in set (0.05 sec)
+</pre><p>We can also request just certain columns.</p><pre class="shell">
+mysql&gt; select name,phone from phones where name like &quot;Smith%&quot;;
++---------------+----------+
+| name          | phone    |
++---------------+----------+
+| Smith, Robert | 689-1234 |
+| Smith, Bob    | 689-1234 |
++---------------+----------+
+2 rows in set (0.05 sec)
+</pre><p>Here the &quot;%&quot; is the wildcard character.</p><p><h2>Updating data in the table<a name="auto4"></a></h2></p><p>The SQL update command is used to change column values in rows specified by
+a &quot;where&quot; clause. Here is an example.</p><pre class="shell">
+mysql&gt; update phones set name='Chase, Chevy' where id=6;
+Query OK, 1 row affected (0.06 sec)
+
+mysql&gt; select * from phones where id=6;
++------+--------------+----------+
+| id   | name         | phone    |
++------+--------------+----------+
+|    6 | Chase, Chevy | 987-6543 |
++------+--------------+----------+
+1 row in set (0.06 sec)
+</pre><p><h2>Deleting rows from the table<a name="auto5"></a></h2></p><p>Finally, the SQL delete command will erase any rows matching the &quot;where&quot;
+clause. If there is no where clause, all rows are deleted.</p><pre class="shell">
+mysql&gt; delete from phones where id=6;
+Query OK, 1 row affected (0.05 sec)
+
+mysql&gt; select * from phones;
++------+-----------------+----------+
+| id   | name            | phone    |
++------+-----------------+----------+
+|    1 | Meyers, Chris   | 343-4349 |
+|    2 | Smith, Robert   | 689-1234 |
+|    3 | Jones, Janet    | 483-5432 |
+|    4 | Barnhart, Ralph | 683-2341 |
+|    5 | Nelson, Eric    | 485-2689 |
+|    7 | Zigler, Mary    | 567-8901 |
+|    8 | Smith, Bob      | 689-1234 |
++------+-----------------+----------+
+7 rows in set (0.00 sec)
+</pre><p>It should now be clear why the id column is important. If we want to be sure
+we are modifying or deleting a single row, this provides a mechanism. We may
+have a given name in the table more than once (maybe she has a cellphone) and
+the phone number may linked to multiple people (a house phone).</p><p><h2>Python and MySQL<a name="auto6"></a></h2></p><p>A Python program may be an sql client as well. In fact, the interface has
+much the same look and feel as the standard mysql client. A few examples
+will demonstate. We'll start by creating a connection object called db and
+telling it to use the test database.</p><pre class="shell">
+&gt;&gt;&gt; import MySQL
+&gt;&gt;&gt; db = MySQL.connect('')
+&gt;&gt;&gt; db.selectdb(&quot;test&quot;)
+&gt;&gt;&gt;
+</pre><p>Next let's do a query. The variable &quot;c&quot; is set to a cursor object which can
+fetch rows for us in a list of lists. The data is returned in the same format
+as in the previous program.</p><pre class="shell">
+&gt;&gt;&gt; c = db.query(&quot;select * from phones&quot;)
+&gt;&gt;&gt; rows = c.fetchrows()
+&gt;&gt;&gt; for row in rows : print row
+...
+[1, 'Meyers, Chris', '343-4349']
+[2, 'Smith, Robert', '689-1234']
+[3, 'Jones, Janet', '483-5432']
+[4, 'Barnhart, Ralph', '683-2341']
+[5, 'Nelson, Eric', '485-2689']
+[7, 'Zigler, Mary', '567-8901']
+[8, 'Smith, Bob', '689-1234']
+&gt;&gt;&gt;
+</pre><p>Although we won't use it in the program, the cursor object may also retrieve
+a list of dictionaries. This can be more convenient since we don't have
+worry about which column is in which position.</p><pre class="shell">
+&gt;&gt;&gt; d = c.fetchdict()
+&gt;&gt;&gt; for row in d : print row
+...
+{'phones.name': 'Meyers, Chris', 'phones.phone': '343-4349', 'phones.id': 1}
+{'phones.name': 'Smith, Robert', 'phones.phone': '689-1234', 'phones.id': 2}
+{'phones.name': 'Jones, Janet', 'phones.phone': '483-5432', 'phones.id': 3}
+{'phones.name': 'Barnhart, Ralph', 'phones.phone': '683-2341', 'phones.id': 4}
+{'phones.name': 'Nelson, Eric', 'phones.phone': '485-2689', 'phones.id': 5}
+{'phones.name': 'Zigler, Mary', 'phones.phone': '567-8901', 'phones.id': 7}
+{'phones.name': 'Smith, Bob', 'phones.phone': '689-1234', 'phones.id': 8}
+&gt;&gt;&gt;
+</pre><p>Inserting, updating and deleting rows is, by comparsion, quite simple. We
+just pass the command to db.query and, voila, it happens.</p><pre class="shell">
+&gt;&gt;&gt; db.query(&quot;update phones set phone='338-1233' where id=1&quot;)
+&gt;&gt;&gt; c = db.query(&quot;select * from phones where id=1&quot;)
+&gt;&gt;&gt; c.fetchrows()
+[[1, 'Meyers, Chris', '338-1233']]
+&gt;&gt;&gt;
+</pre><p><h2>Adapting our GUI for SQL<a name="auto7"></a></h2></p><p>The changes required to use mysql with our GUI are actually fairly minor.
+<a href="sqlPhone.py">Click here to see the full code.</a> Let's look at the changes
+one at a time.</p><p>At the top of the program we import MySQL and set up a database connection to
+the test database.</p><pre class="shell">
+import MySQL
+db = MySQL.connect('')
+db.selectdb(&quot;test&quot;)
+</pre><p>Let's look next at the function &quot;setSelect&quot; which fills in our list control.
+Here, instead of importing the phone list, we simply use fetchrows to get
+the same list of lists.</p><pre class="shell">
+def setSelect () :
+global phoneList
+c = db.query(&quot;select id,name,phone from phones order by name&quot;)
+phoneList = c.fetchrows()
+select.delete(0,END)
+for id,name,phone in phoneList :
+select.insert (END, name)
+</pre><p>All other SQL commands are channeled to the function &quot;dosql&quot; which makes
+sure setSelect is called after the update, delete or insert happens. This
+also catch any changes made in the meantime by other users. For learner
+feedback &quot;dosql&quot; also prints the sql command to the launch window.</p><p>About the only other feature worth remarking on is the generation of new id
+numbers as new rows are inserted.</p><pre class="shell">
+c = db.query(&quot;select max(id)+1 from phones&quot;)
+id = c.fetchdict()[0].values()[0]
+</pre><p>The SQL max function does what you would expect. Adding one gives us a new
+unique id to be used in the insert immediately following.</p><p>There is a potential problem with this however. If hundreds of users were
+using the program at the same time, two might inadvertantly fetch the same
+&quot;max(id)+1&quot; before either does their insert. Then we would have two rows in
+the table with the same id; something we definitely don't want. Databases
+have ways of dealing with these &quot;racing&quot; conditions, from providing automatic
+id columns to transaction processing, where multiple SQL statements can be
+guarenteed concurrent (and non-interrupted) execution.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2004-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

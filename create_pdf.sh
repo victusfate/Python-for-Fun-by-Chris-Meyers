@@ -1,0 +1,2 @@
+/Applications/wkhtmltopdf cover index.html collection.html toc lode/lode.html buckets/buckets.html tower/tower.html animal/animal.html gui/tkPhone.html gui/sqlPhone.html gui/wxPhone.html erlang/erlang.html erlang/erlang2.html forth/forth.html lisp/lisp.html prolog/intro.html prolog/prolog1.html prolog/prolog2.html prolog/prolog3.html huffman/huffman.html rtn/rtn.html sir/sir.html unicode/unicode.html logic/logic.html logic2/logic2.html mm/simulator.html mm/assembler.html mm/compiler.html sql/sql.html wave/wave.html py4fun.pdf
+

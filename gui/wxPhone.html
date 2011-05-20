@@ -1,0 +1,114 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Building the GUI with wxPython</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Building the GUI with wxPython</h1><div class="toc"><ol><li><a href="#auto0">What is wxPython</a></li><li><a href="#auto1">Comparing the code</a></li><li><a href="#auto2">The Controls</a></li><li><a href="#auto3">The complete program</a></li></ol></div><div class="content"><span></span><h2>What is wxPython<a name="auto0"></a></h2><p>As an alternative to Tkinter, there is an interface available to adapt the
+wxWindows package to Python. The interface, appropriately enough, is called
+wxPython.</p><p>wxWindows is a C++ package that runs on both Windows and Unix and lets you
+build GUI programs with a
+very native look and feel on each platform. Here is what our program
+will look like under Windows 98.</p><p><img src="wxPhone.jpeg" /></p><p>Tkinter is certainly
+very object oriented with windows and widget objects created, customized and
+positioned by your code. Your code itself, however, can be completely procedural.
+In fact this is exactly how the previous program was constructed. The
+function makeWindow assembled all the pieces including callback functions
+for the buttons. Then the mainloop method of the window was called passing
+control to the window itself.</p><p>With wxPython programs are built using inheritance. Your application program is
+a subclass of a generic application class (wxApp) and windows (or frames)
+are subclassed from a generic wxFrame. Our makeWindow function essentially becomes
+the __init__ method of our Frame class. Button callback functions become methods
+within our class.</p><p>In my opinion we get a more organized program but at a cost.
+It seems a good deal harder to play with the pieces at the interactive
+prompt than it was with Tkinter. Instead, one starts building a bare-bones
+application and frame class and then testing it. Then, as it is working
+correctly, one adds more and more to the frame class filling it in.</p><p><h2>Comparing the code<a name="auto1"></a></h2></p><p>At this point it is probably a good idea to get a printout of the
+<a href="wxPhone.py">wxPython code.</a> in order to compare it to the
+<a href="tkPhone.py">Tkinter GUI program.</a></p><p>A basic application class is pretty much boilerplate code. Each application
+subclass must have an OnInit method which instantiates one or more windows
+(frames) and selects one to be active and shown on top. If only one frame is
+created this code is very straight forward.</p><pre class="python">
+<span class="py-src-keyword">class</span> <span class="py-src-identifier">MyApp</span> <span class="py-src-op">(</span><span class="py-src-parameter">wxApp</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">   </span><span class="py-src-keyword">def</span> <span class="py-src-identifier">OnInit</span> <span class="py-src-op">(</span><span class="py-src-parameter">self</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">      </span><span class="py-src-variable">frame</span> <span class="py-src-op">=</span> <span class="py-src-variable">MyFrame</span><span class="py-src-op">(</span><span class="py-src-variable">NULL</span><span class="py-src-op">,</span> <span class="py-src-op">-</span><span class="py-src-number">1</span><span class="py-src-op">,</span> <span class="py-src-string">&quot;Phone List&quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>      <span class="py-src-variable">frame</span><span class="py-src-op">.</span><span class="py-src-variable">Show</span><span class="py-src-op">(</span><span class="py-src-variable">true</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>      <span class="py-src-variable">frame</span><span class="py-src-op">.</span><span class="py-src-variable">setSelect</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>      <span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">SetTopWindow</span> <span class="py-src-op">(</span><span class="py-src-variable">frame</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>      <span class="py-src-keyword">return</span> <span class="py-src-variable">true</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>Within MyApp we create an instance of a MyFrame object and then show it, select
+it for focus and make sure its the top window. Notice that we have no __init__
+method in MyApp. The __init__ method of the parent class, wxApp, is used instead
+and it calls OnInit (among other things).</p><p>Our skeletal frame (window) is built with the following.</p><pre class="python">
+<span class="py-src-keyword">class</span> <span class="py-src-identifier">MyFrame</span> <span class="py-src-op">(</span><span class="py-src-parameter">wxFrame</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-keyword">def</span> <span class="py-src-identifier">__init__</span> <span class="py-src-op">(</span><span class="py-src-parameter">self</span><span class="py-src-op">,</span> <span class="py-src-parameter">parent</span><span class="py-src-op">,</span> <span class="py-src-parameter">ID</span><span class="py-src-op">,</span> <span class="py-src-parameter">title</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">   </span><span class="py-src-variable">wxFrame</span><span class="py-src-op">.</span><span class="py-src-variable">__init__</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span> <span class="py-src-variable">parent</span><span class="py-src-op">,</span> <span class="py-src-variable">ID</span><span class="py-src-op">,</span> <span class="py-src-variable">title</span><span class="py-src-op">,</span> <span class="py-src-nl">
+</span>               <span class="py-src-variable">wxDefaultPosition</span><span class="py-src-op">,</span> <span class="py-src-variable">wxSize</span><span class="py-src-op">(</span><span class="py-src-number">300</span><span class="py-src-op">,</span><span class="py-src-number">325</span><span class="py-src-op">)</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>The __init__ method takes 3 arguments. Looking at call above in  OnInit, we set parent to NULL
+(meaning no parent), ID to -1 (use a default), and the title to &quot;Phone List&quot;. These 3
+arguments are passed to the frame initializer along with size and position.</p><p>Size and position arguments are passed as 2 element tuples in wxPython, specifying x and y
+pixel or &quot;dialog&quot; values. The value -1 tells wxPython to use a default value.
+wxPython has functions that let us use nicer notation that just translates back to
+simple tuples. We can observe this at the command prompt.</p><pre class="python-interpreter">
+&gt;&gt;&gt; print wxDefaultPosition
+(-1, -1)
+&gt;&gt;&gt; print wxSize(300,325)
+(300, 325)
+&gt;&gt;&gt; f = wxFrame(NULL,-1,&quot;test&quot;)
+&gt;&gt;&gt; print wxDLG_SZE(f,100,100)
+(200,200)
+</pre><p>The function wxSize simply passes the tuple through. But wxDLG_SZE is a bit different.
+It translates an x/y size depending on the frame passed. wxDLG_PNT is similar. Using
+these functions lets your program behave the same way even with different screen
+resolutions.</p><p><h2>The Controls<a name="auto2"></a></h2></p><p>Our window will contain lables, buttons (and their callbacks), text entry boxes, and a
+list control. We saw each of these in Tkinter and now we'll look at their counterparts
+in wxPython.</p><p>To keep things simple we are going to use absolute positioning in our wxPython version
+of the phone list program. This is done by simply giving the position (with wxDLG_PNT)
+and the size (with wxDLG_SZE), although wxPython has facilities similar to &quot;pack&quot; and
+&quot;grid&quot; in Tkinter.</p><p>Labels in Tkinter were simply a bit of geometry and text and the same is true with
+wxPython. Only the name has been changed. The frame class contains a method to add a
+label. Being a method
+it takes the first argument &quot;self&quot;. The second argument is id number which can
+be ignored (defaulted). Then comes the text in the label and its position in the
+frame.</p><pre class="python">
+<span class="py-src-variable">wxStaticText</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-op">-</span><span class="py-src-number">1</span><span class="py-src-op">,</span><span class="py-src-string">&quot;Name&quot;</span><span class="py-src-op">,</span><span class="py-src-variable">wxDLG_PNT</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">15</span><span class="py-src-op">,</span><span class="py-src-number">5</span><span class="py-src-op">)</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p>Entry widgets need a both a position and a size and a way to get text into or out
+of them. With Tkinter the latter is done by tying the widget to a StringVar object
+and then getting and setting its value. Here wxPython is a bit more straight forward.</p><pre class="python">
+<span class="py-src-variable">name</span>  <span class="py-src-op">=</span> <span class="py-src-variable">wxTextCtrl</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">12</span><span class="py-src-op">,</span><span class="py-src-string">&quot;&quot;</span><span class="py-src-op">,</span><span class="py-src-variable">wxDLG_PNT</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">40</span><span class="py-src-op">,</span> <span class="py-src-number">5</span><span class="py-src-op">)</span><span class="py-src-op">,</span><span class="py-src-variable">wxDLG_SZE</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">80</span><span class="py-src-op">,</span><span class="py-src-number">12</span><span class="py-src-op">)</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-variable">name</span><span class="py-src-op">.</span><span class="py-src-variable">SetValue</span><span class="py-src-op">(</span><span class="py-src-string">&quot;Muggs, J. Fred&quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-keyword">print</span> <span class="py-src-variable">name</span><span class="py-src-op">.</span><span class="py-src-variable">GetValue</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p>Here we used the id value of 12 and would use this id to tie events in the text
+control to another method. We'll see how this works with buttons.</p><p>Button widgets need a name (title), size and position, and a callback function (or method)
+to invoke when clicked. Here wxPython is a little less straight forward than
+Tkinter. It is necessary to give each button an id number and then that id number
+is linked to a method in the class. In the following case, the id is 11.</p><pre class="python">
+<span class="py-src-variable">wxButton</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">11</span><span class="py-src-op">,</span><span class="py-src-string">&quot;Add&quot;</span><span class="py-src-op">,</span>   <span class="py-src-variable">wxDLG_PNT</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">10</span><span class="py-src-op">,</span><span class="py-src-number">45</span><span class="py-src-op">)</span><span class="py-src-op">,</span><span class="py-src-variable">wxDLG_SZE</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">25</span><span class="py-src-op">,</span><span class="py-src-number">12</span><span class="py-src-op">)</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-variable">EVT_BUTTON</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span> <span class="py-src-number">11</span><span class="py-src-op">,</span> <span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">addEntry</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p>Finally, we come to the list box and its scrollbar. We need functionality to delete
+the contents, insert rows with one or more columns, and access a user selection.
+With wxPython this is pretty straight forward. The scroll bar incidentally comes
+for free here whereas in Tkinter it was a seperate widget &quot;married&quot; to the list box.</p><pre class="python">
+<span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">lc</span> <span class="py-src-op">=</span> <span class="py-src-variable">wxListCtrl</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">15</span><span class="py-src-op">,</span><span class="py-src-variable">wxDLG_PNT</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">10</span><span class="py-src-op">,</span><span class="py-src-number">60</span><span class="py-src-op">)</span><span class="py-src-op">,</span><span class="py-src-variable">wxDLG_SZE</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">120</span><span class="py-src-op">,</span><span class="py-src-number">75</span><span class="py-src-op">)</span><span class="py-src-op">,</span><span class="py-src-nl">
+</span><span class="py-src-variable">style</span><span class="py-src-op">=</span><span class="py-src-variable">wxLC_REPORT</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-variable">EVT_LIST_ITEM_SELECTED</span><span class="py-src-op">(</span><span class="py-src-variable">self</span><span class="py-src-op">,</span><span class="py-src-number">15</span><span class="py-src-op">,</span><span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">getSelect</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p>Here our list control is given an id of 15 and positioned and sized. The style
+parameter means we'll have columns with headings in the control. The second
+statement ties the callback method &quot;getSelect&quot; to the list control. It is
+called whenever an entry is clicked.</p><pre class="python">
+<span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">lc</span><span class="py-src-op">.</span><span class="py-src-variable">InsertColumn</span><span class="py-src-op">(</span><span class="py-src-number">0</span><span class="py-src-op">,</span><span class="py-src-string">&quot;Name&quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">lc</span><span class="py-src-op">.</span><span class="py-src-variable">InsertColumn</span><span class="py-src-op">(</span><span class="py-src-number">1</span><span class="py-src-op">,</span><span class="py-src-string">&quot;Phone&quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p>Columns in the list control are set up just once. They are given a column number
+starting with zero and text for the heading.</p><pre class="python">
+<span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">lc</span><span class="py-src-op">.</span><span class="py-src-variable">InsertStringItem</span><span class="py-src-op">(</span><span class="py-src-variable">row</span><span class="py-src-op">,</span> <span class="py-src-variable">name</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">lc</span><span class="py-src-op">.</span><span class="py-src-variable">SetStringItem</span><span class="py-src-op">(</span><span class="py-src-variable">row</span><span class="py-src-op">,</span> <span class="py-src-number">1</span><span class="py-src-op">,</span> <span class="py-src-variable">phone</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p>Two calls are used to set information in a row. InsertStringItem inserts a new row and
+fills column 0. Other columns in the same row are filled with SetStringItem.</p><p>Finally, when the call back method is called with an event object, the attribute
+m_itemIndex contains the row clicked.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">getSelect</span> <span class="py-src-op">(</span><span class="py-src-parameter">self</span><span class="py-src-op">,</span> <span class="py-src-parameter">event</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-variable">self</span><span class="py-src-op">.</span><span class="py-src-variable">currentSel</span> <span class="py-src-op">=</span> <span class="py-src-variable">event</span><span class="py-src-op">.</span><span class="py-src-variable">m_itemIndex</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p><h2>The complete program<a name="auto3"></a></h2></p><p>Armed with the above you are ready to tackle the code and by comparing it with
+the Tkinter version have everything come together. The last thing needed is
+to create an instance of our application class and set it running by calling
+its MainLoop method.</p><pre class="python">
+<span class="py-src-variable">app</span> <span class="py-src-op">=</span> <span class="py-src-variable">MyApp</span><span class="py-src-op">(</span><span class="py-src-number">0</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-variable">app</span><span class="py-src-op">.</span><span class="py-src-variable">MainLoop</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2004-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

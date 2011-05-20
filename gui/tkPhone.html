@@ -1,0 +1,195 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Building a GUI Application with Tkinter</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Building a GUI Application with Tkinter</h1><div class="toc"><ol><li><a href="#auto0">Playing with buttons</a></li><li><a href="#auto1">Using the Pack Manager</a></li><li><a href="#auto2">Using the Grid Manager</a></li><li><a href="#auto3">More complex layouts.</a></li><li><a href="#auto4">Bringing the buttons to life.</a></li><li><a href="#auto5">Entry widgets</a></li><li><a href="#auto6">The Listbox widget</a></li><li><a href="#auto7">Putting it all together.</a></li></ol></div><div class="content"><span></span><p>In this tutorial we will use Tkinter to build a graphical user interface that
+we can use to maintain a simple phone list. On the way we'll play around with
+several Tkinter widgets thru the Python interactive prompt, hopefully getting
+a good feel for how all the pieces work together. Then we'll study a functional
+event driven GUI program.</p><p>It's best if you follow along with Python in another window and watch the
+widgets come and go and move around. Make sure you are using the ordinary
+python.exe executable and not one of the IDE like IDLE or PythonWin. Sometimes
+the graphics they are doing will interfere with the graphics we are creating
+resulting in some odd behaviour.</p><p>The amount of Tk that is introduced in this tutorial is small but surprisingly
+effective for many applications. However, you will also want to have a
+good reference to find out about other widgets such as check boxes and radio
+buttons as well as how to extend the functionality of the widgets being
+introduced here.</p><p><h2>Playing with buttons<a name="auto0"></a></h2></p><p>The first thing to do is to import the Tkinter module. Generally this is done
+by importing the module into our local namespace so that we can use the
+classes and constants by their names (like Label, Button, TOP) instead of
+having to constantly qualify everything (like Tkinter.Label, Tkinter.Button,
+Tkinter.TOP). So lets do that first.</p><pre class="python-interpreter">
+&gt;&gt;&gt; from Tkinter import *
+</pre><p>Now if this produced an error message it means that either Tk/Tcl is not
+installed on your system or that Python is not linked to it. You will need to
+fix that before going on and that will probably involve your system administrator.
+Otherwise, if all is quiet, try the first command which will create
+a window and assign it to the variable &quot;win&quot;.</p><pre class="python-interpreter">
+&gt;&gt;&gt; win=Tk()
+</pre><p>You should now have a small window on your screen with &quot;tk&quot; in the title
+bar. Let's create a couple of buttons for this window</p><pre class="python-interpreter">
+&gt;&gt;&gt; b1 = Button(win,text=&quot;One&quot;)
+&gt;&gt;&gt; b2 = Button(win,text=&quot;Two&quot;)
+</pre><p>The class Button takes the parent window as the first argument. As we
+will see later other objects, such as frames, may also act as parents. The
+rest of the arguments are passed by keyword and are all optional.</p><p>You might be surprised that the buttons did not appear in the window. They
+must first be placed with one of the so called geometry managers. The two most common
+ones are &quot;pack&quot; and &quot;grid&quot;.</p><p><h2>Using the Pack Manager<a name="auto1"></a></h2></p><p>With &quot;pack&quot; you tell your widget to pack itself into its parent. You may
+specify a side (TOP, LEFT, RIGHT, BOTTOM) and your widget will
+be packed against either the parents wall or a previous widget with the same
+packing. If you don't specify a side the default is TOP. Do the following.</p><pre class="python-interpreter">
+&gt;&gt;&gt; b1.pack()
+&gt;&gt;&gt; b2.pack()
+</pre><p>Notice that after the first command the button is placed in the window and
+the window itself is
+shrunk to the size of the button. When the second button is packed the window
+is expanded to accomodate it. The default TOP stacked them vertically in the
+order they were packed.</p><p><img src="g1.jpeg" /></p><p>Now try the following two commands.</p><pre class="python-interpreter">
+&gt;&gt;&gt; b2.pack(side=LEFT)
+&gt;&gt;&gt; b1.pack(side=LEFT)
+</pre><p>Now the buttons look like</p><p><img src="g2.jpeg" /></p><p>In practice the pack geometry manager is generally used in one of these two
+modes to place a set of widgets in either a vertical column or horizontal
+row.</p><p>Our buttons look a little squished. We can fix that by packing them with a
+little padding. &quot;padx&quot; adds pixels to the left and right and &quot;pady&quot; adds
+them to the top and bottom.</p><pre class="python-interpreter">
+&gt;&gt;&gt; b1.pack(side=LEFT,padx=10)
+&gt;&gt;&gt; b2.pack(side=LEFT,padx=10)
+</pre><p><img src="g3.jpeg" /></p><p>I suggest you create a couple more buttons and play with BOTTOM and RIGHT to
+get a good feel for the &quot;pack&quot; manager.</p><p><h2>Using the Grid Manager<a name="auto2"></a></h2></p><p>Another way to place widgets (buttons, labels and whatnot) is in a table or grid.
+Here the parent window is divided into rows and columns and each widget is placed
+in a given cell. The grid manager
+keeps track of how many row and columns are actually needed and fills out the window
+accordingly. It also keeps track of how wide each column, and how tall each row must
+be to accomodate the largest widget in that row or column. Rows do not all have to be
+the same height and columns do not have to all be the same width.</p><p>Let's make a new window with the same buttons but this time lay them out in a two
+by two grid.</p><pre class="python-interpreter">
+&gt;&gt;&gt; win = Tk()
+&gt;&gt;&gt; b1 = Button(win,text=&quot;One&quot;)
+&gt;&gt;&gt; b2 = Button(win,text=&quot;Two&quot;)
+&gt;&gt;&gt; b1.grid(row=0, column=0)
+&gt;&gt;&gt; b2.grid(row=1, column=1)
+</pre><p><img src="g4.jpeg" /></p><p>You can see that some empty space is left since nothing was put into row 0, column 1 or
+into row1, column 0. Let's use this as an oppurtunity to look at a new widget type.</p><p>A label widget is used to place text into the window and is very simple.</p><pre class="python-interpreter">
+&gt;&gt;&gt; l = Label(win, text=&quot;This is a label&quot;)
+&gt;&gt;&gt; l.grid(row=1,column=0)
+</pre><p><img src="g5.jpeg" /></p><p>Notice how the label pushed the width of column 0 out to accomodate the text.</p><p><h2>More complex layouts.<a name="auto3"></a></h2></p><p>A frame is a widget whose sole purpose is to contain other widgets.
+Groups of widgets, whether packed or placed in a grid, may be combined into a
+single Frame. Frames may then be packed with other widgets and frames. This feature
+lets us create just about any kind of layout. As an example let's place a lable over
+3 buttons in a row. We'll first pack the buttons into a frame horizontally and then
+pack the label and frame vertically in the window.</p><pre class="python-interpreter">
+&gt;&gt;&gt; win = Tk()
+&gt;&gt;&gt; f = Frame(win)
+&gt;&gt;&gt; b1 = Button(f, &quot;One&quot;)
+&gt;&gt;&gt; b2 = Button(f, &quot;Two&quot;)
+&gt;&gt;&gt; b3 = Button(f, &quot;Three&quot;)
+&gt;&gt;&gt; b1.pack(side=LEFT)
+&gt;&gt;&gt; b2.pack(side=LEFT)
+&gt;&gt;&gt; b3.pack(side=LEFT)
+&gt;&gt;&gt; l = Label(win,&quot;This label is over all buttons&quot;)
+&gt;&gt;&gt; l.pack()
+&gt;&gt;&gt; f.pack()
+</pre><p><img src="g6.jpeg" /></p><p>In addition to pack and grid there is a place method to position a widget at a precise
+location within a frame or window. It is not often used because it is frankly easier to
+let pack and grid just spread things out as needed, especially if you use the mouse
+to shrink or expand a window.</p><p>There are other keyword arguments that are common when using either pack or grid.
+We saw padx and pady above. With
+grids there is a &quot;sticky&quot; parameter which takes a map coordinate like N, E, S, W, NE,
+etc. If the grid cell is larger than your widget because a larger widget is in
+the same row or column, sticky helps you put the widget where you want it in the cell.</p><p>At this point you might want to check out your reference guide and play with other
+keyword parameters from the interactive prompt in order to get a good feel for how
+they function.</p><p><h2>Bringing the buttons to life.<a name="auto4"></a></h2></p><p>You may have tried clicking the buttons. If so, you noticed that they highlight and
+depress fine but they just don't do anything. Let's fix that.</p><p>As we've seen, widgets are objects and have methods. We've been using their pack
+and grid methods. Now we'll use a new method, &quot;configure&quot;.</p><p>Any keyword argument that we can pass when creating a widget may also be passed to
+its &quot;configure&quot; method. For example, if we do the following</p><pre class="python-interpreter">
+&gt;&gt;&gt; b1.configure(text=&quot;Uno&quot;)
+</pre><p>suddenly our window looks like</p><p><img src="g7.jpeg" /></p><p>Buttons are tied to callback functions using the parameter &quot;command&quot; either when the
+button is created or with configure. Let's start by defining a function that simply
+prints a message</p><pre class="python-interpreter">
+&gt;&gt;&gt; def but1() : print &quot;Button one was pushed&quot;
+...
+&gt;&gt;&gt; b1.configure(command=but1)
+</pre><p>Now when we click button &quot;Uno&quot; the message is printed.</p><p><h2>Entry widgets<a name="auto5"></a></h2></p><p>To input text from the user we use an entry widget.
+Just as in the case of buttons we need some way to communicate with the entry widget,
+in this case to set and retrieve text. This is done with a special Tkinter object
+called a StringVar that simply holds a string of text and allows us to set its
+contents and read it (with get). Let's start with a clean window.</p><pre class="python-interpreter">
+&gt;&gt;&gt; win = Tk()
+&gt;&gt;&gt; v = StringVar()
+&gt;&gt;&gt; e = Entry(win,textvariable=v)
+&gt;&gt;&gt; e.pack()
+</pre><p>Now let's type &quot;this is a test&quot; into the entry and then retrieve it from
+our linked StringVar object</p><p><img src="g8.jpeg" /></p><pre class="python-interpreter">
+&gt;&gt;&gt; v.get()
+&quot;this is a test&quot;
+</pre><p>We can also set text into our StringVar object and have it appear in the entry widget.</p><pre class="python-interpreter">
+&gt;&gt;&gt; v.set(&quot;this is set from the program&quot;)
+</pre><p><img src="g9.jpeg" /></p><p><h2>The Listbox widget<a name="auto6"></a></h2></p><p>Our last widget in the project will let us have a menu of items to choose from.
+A listbox is created with the following command (after opening a window).
+The &quot;height&quot; parameter limits how many lines will show.</p><pre class="python-interpreter">
+&gt;&gt;&gt; win = Tk()
+&gt;&gt;&gt; lb = Listbox(win, height=3)
+&gt;&gt;&gt; lb.pack()
+&gt;&gt;&gt; lb.insert(END,&quot;first entry&quot;)
+&gt;&gt;&gt; lb.insert(END,&quot;second entry&quot;)
+&gt;&gt;&gt; lb.insert(END,&quot;third entry&quot;)
+&gt;&gt;&gt; lb.insert(END,&quot;fourth entry&quot;)
+</pre><p><img src="g10.jpeg" /></p><p>The fourth entry doesn't show since the listbox is set to just 3 lines.</p><p>Items in the listbox may be also inserted not only at the end (END) but also
+at the begining or even the middle. They
+may also be deleted. In fact we'll use the command &quot;lb.delete(0,END)&quot; later to
+clear the listbox.</p><p>A listbox may be used in conjunction with a scroll bar. Let's start by
+making a scroll bar and packing it next to the list box.</p><pre class="python-interpreter">
+&gt;&gt;&gt; sb = Scrollbar(win,orient=VERTICAL)
+&gt;&gt;&gt; sb.pack(side=LEFT,fill=Y)
+</pre><p><img src="g11.jpeg" /></p><p>This looks good but if you operate the scroll bar you'll see that it doesn't
+do anything yet. The scroll bar and the list box need to know about each other.
+This is done in a manner similar to how we tied buttons to call back functions.
+Two calls are needed, one to tell each about the other.</p><pre class="python-interpreter">
+&gt;&gt;&gt; sb.configure(command=lb.yview)
+&gt;&gt;&gt; lb.configure(yscrollcommand=sb.set)
+</pre><p>Now manipulate the scroll bar and see the listbox respond.</p><p><img src="g12.jpeg" /></p><p>If you have selected an item in the listbox, the method curselection will
+return it for you. Actually it returns a tuple of items selected. It is
+possible to configure the listbox to allow multiple items to be selected
+together. An empty tuple is returned if no item is selected. Otherwise
+the tuple contains the index(es) of the selected items. (but as strings!)</p><p>For example, click on the 3rd item and do the following. In typical Python
+fashion indexes start at zero.</p><pre class="python-interpreter">
+&gt;&gt;&gt; lb.curselection()
+('2',)
+</pre><p><h2>Putting it all together.<a name="auto7"></a></h2></p><p>Our phone list editor uses all of the features discussed so far plus a few
+more that we'll touch on. Here is a view of the running application.</p><p><img src="g13.jpeg" /></p><p>Now would be a good time to bring to bring up the python source in another
+window or make a printout. <a href="tkPhone.py">Click here to view the source</a>.
+<a href="phones.py">Click here to see the initial phone list</a>.</p><p>The variable &quot;phonelist&quot; is a list of name/phone number pairs. As we work with the
+application pair entries will be added, modified and deleted.</p><p>The first thing the program does is call makeWindow, returning a reference to it
+which is stored in the variable &quot;win&quot;. Looking at the code in the function
+&quot;makeWindow&quot; we can see all the widgets talked about above. The widgets are set
+into three frames which are then packed vertically.</p><p>The top frame is a 2x2 grid for the name and phone entry fields and labels to
+the left of them. Notice the rather strange form of the call</p><pre class="python-interpreter">
+Label(frame1, text=&quot;Name&quot;).grid(row=0, column=0, sticky=W)
+</pre><p>Here we create a label and immediately &quot;grid&quot; it into row=0, column=0. We loose
+all reference to it but frame1 has it tucked away. This is a very common way
+to define widgets when once they are created and set in their parent, we need no
+further contact with them.</p><p>Notice that two globals, &quot;nameVar&quot; and &quot;phoneVar&quot; reference StringVar objects that
+are tied to the Entry widgets &quot;name&quot; and &quot;phone&quot;.</p><p>The second frame contains the 4 buttons packed left to right. Each is tied
+to a callback function which we'll discuss shortly. Here we've assigned each
+button to a variable (like &quot;b1&quot;) but since we don't access them later we could have done
+the same thing that we did with the label above.</p><pre class="python-interpreter">
+Button(frame2,text=&quot; Add  &quot;,command=addEntry).pack(side=LEFT)
+</pre><p>Finally the listbox and its scrollbar are packed into their own frame3. The
+&quot;fill&quot; parameters guarentee that the scrollbar and listbox will be the same height
+and that the listbox (fill=BOTH) will expand to the full width of the parent window.</p><p>The function setSelect first sorts the phonelist (it may get out of sort order during
+modifcations to it) and then essentially writes it to the listbox.</p><p>Once the window is built and the listbox initially populated a new function
+win.mailoop() is called. This puts the program into the event driven mode where
+everything that happens, until the program exits, is due to callback functions,
+initiated in this program by clicking the buttons.</p><p>Run the program and click one of the names in the list box. Then click the Load
+button. The name and phone number of your selection should appear in the Entry
+widgets. Clicking the Load button activated the callback function LoadEntry which
+first accessed the index of your listbox selection (via function whichSelected())
+and then accessed the data from the list &quot;phonelist&quot;. Now modify the Entry widgets
+contents and click Update or Add. Play around also with the Delete function.</p><p>A little careful study should make this program completely understandable. But
+it is incomplete is several respects. Most glaringly, there is no way to save
+your changes when the window is closed! As an exercise, add a Save button and make
+it work. One possiblity is to have Save's callback write a new &quot;phones.py&quot; to
+import the next time the program is run. Another is to use the &quot;pickle&quot; module
+to store the contents of &quot;phonelist&quot; between runs.</p><p>In the followup to this study, we'll extend this program to use a MySQL database
+for storing the phone list. This will enable multiple people to modify the
+list concurrently.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2004-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

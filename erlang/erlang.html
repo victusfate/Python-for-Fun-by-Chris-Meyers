@@ -1,0 +1,201 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Erlang for Python Programers</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Erlang for Python Programers</h1><div class="toc"><ol><li><a href="#auto0">Introduction</a></li><li><a href="#auto1">Replacing Iteration with Recursion</a></li><li><a href="#auto2">Some Basics of Erlang Syntax.</a></li><li><a href="#auto3">Watching Recursion</a></li><li><a href="#auto4">Accumulators and Tail Recursion</a></li><li><a href="#auto5">List Processing</a></li><li><a href="#auto6">Quicksort in Python and Erlang</a></li><li><a href="#auto7">Conclusion</a></li></ol></div><div class="content"><span></span><h2>Introduction<a name="auto0"></a></h2><p>There has been a lot of interest in the Erlang language in the last few years. Its model of programming relies on concurrent processes that communicate only by sending and receiving messages to each other. These processes are built using a fairly simple functional language that requires a different mind-set than the one we are used to when programming in imperative languages like Python, Ruby or Java.</p><p>In this project, we will explore some simple examples of this functional way of programming in both Erlang and in Python. Erlang, like other functional languages such as ML or Haskell, is quite restrictive in constructs we can use. We can write equivalent Python programs with the same restrictions, and in the process leverage our knowledge of Python to a better understanding of Erlang and functional programming in general.</p><p>In a second part of this project, we'll explore Erlang's concurrency and message passing features. We'll adapt an example from the logic circuits project, building a composite logic gate using instances of a single simple Nand gate. Instead of each gate being a Python object instance, in Erlang they will each be a seperate concurrent process. Message passing will connect the circuits.</p><p>In what may be a third part of the project, we will look at more sophisticated techniques of functional programming such as higher-order functions.</p><p>Here are links to the <a href="samples.py.txt">Python</a> and <a href="samples.erl.txt">Erlang</a> code.</p><h2>Replacing Iteration with Recursion<a name="auto1"></a></h2><p>Let's look at a simple factorial function using a &quot;while&quot; loop.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">factorialOld</span>(<span class="py-src-parameter">n</span>) :
+    <span class="py-src-variable">ans</span> = <span class="py-src-number">1</span>
+    <span class="py-src-keyword">while</span> <span class="py-src-variable">n</span> &gt; <span class="py-src-number">1</span> :
+        <span class="py-src-variable">ans</span> = <span class="py-src-variable">ans</span> * <span class="py-src-variable">n</span>
+        <span class="py-src-variable">n</span>   = <span class="py-src-variable">n</span> - <span class="py-src-number">1</span>
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">ans</span>
+</pre><pre class="python-interpreter">
+&gt;&gt;&gt; import samples
+&gt;&gt;&gt; samples.factorialOld(5)
+120
+</pre><p>Now, in Erlang, such an approach will simply not do. Interation using a &quot;while&quot; or &quot;for&quot; keyword is not allowed. Secondly, a variable may not take multiple values. The reasons for these restrictions will be clear in a bit.</p><p>So let's rewrite the factorial function using recursion.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">factorial</span>(<span class="py-src-parameter">n</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">n</span> == <span class="py-src-number">0</span> : <span class="py-src-keyword">return</span> <span class="py-src-number">1</span>
+    <span class="py-src-keyword">else</span>      : <span class="py-src-keyword">return</span> <span class="py-src-variable">n</span> * <span class="py-src-variable">factorial</span>(<span class="py-src-variable">n</span>-<span class="py-src-number">1</span>)
+</pre><p>And run it</p><pre class="python-interpreter">
+&gt;&gt;&gt; import samples
+&gt;&gt;&gt; samples.factorial(5)
+120
+</pre><p>Now that should be pretty straightforward. You might be complaining that the variable &quot;n&quot; really does take on different values, a different one at each level of recursion. But, actually &quot;n&quot; is a different variable at each level. All variables are &quot;assigned&quot; only as a new level of recursion takes place. Within a level, the single value property is intact.</p><p>But why all the fuss?</p><p>Well, not being able to change a variables &quot;binding&quot; (a term more accurate than &quot;value&quot;) means that, within a level of recursion, the relationship between the variables is constant and will not &quot;swim around&quot;. The computation is much simpler to analyze and far less error prone. Many subtle errors, maybe most, arise from variables that interact with other with different values at different times. The timing of when each variable is set relative to the others leads to surprising complexity. In the bad old days of GOTO spaghetti code (before even structured programming) most code modifications would introduce new bugs.</p><p>Once the variables become fixed, giving up loops within a specific recursion level is actually no longer a big deal because the reason we wanted the loops was to change the value of one or more variables and their relationship with each other.</p><p>So now let's look at the factorial function in Erlang.</p><pre class="python-interpreter">
+ factorial(0) -&gt; 1;
+ factorial(N) -&gt; N * factorial(N-1).
+</pre><p>Now this may seem strange if you are not used to pattern matching. Basically, there are two cases that in Python we addressed with an &quot;if/else&quot; inside a single function definition. Here pattern matching happens on the outside, instead. If the argument to the factorial call is zero, then a one is returned, no explicit &quot;return&quot; keyword is required. Otherwise, the variable &quot;N&quot; is bound to the argument and the result, from evaluating &quot;N * factorial(N-1)&quot;, is returned. It is basically the same logic as in the Python version.</p><p>And here is how we can test this erlang version.</p><pre class="python-interpreter">
+chris@ubuntu:~/projects/erlang$ erl
+Erlang (BEAM) emulator version 5.6.3 
+Eshell V5.6.3  (abort with ^G)
+1&gt; c(samples).
+{ok,samples}
+2&gt; samples:factorial(20).
+2432902008176640000
+</pre><p>Line 1 &quot;c(samples).&quot; compiles &quot;samples.erl&quot; and will return error messages if there are problems. Basically the same as a Python &quot;import&quot;. Line 2 runs the function &quot;factorial&quot; in the module &quot;samples&quot;. Notice the &quot;:&quot; seperates the module name from the function name, where Python uses a &quot;.&quot;. Also notice the ending &quot;.&quot; after each statement.</p><h2>Some Basics of Erlang Syntax.<a name="auto2"></a></h2><p>Just a few things to keep in mind. Once you are used to it, Erlang is actually a surprisingly simple language. This is not at all complete, but enough for what we are working with right now.</p><dl><dd> &quot;-&gt;&quot; sets up a conditional and in Python we would always find a &quot;:&quot; in its place.</dd><dd>&quot;.&quot; ends a statement. It will consist of one or more clauses seperated by a &quot;;&quot;. Within a statement only one clause will be chosen, the first whose pattern matches the input.</dd><dd>Within a clause there may be multiple expressions seperated by &quot;,&quot;. They will be evaluated sequentially. The value last expression evaluated in a statement is returned to the caller.</dd><dd>Variables in Erlang begin with an uppercase character. For convenience we'll use the same variable names in our Python equivalent programs.</dd><dd>Words starting with a lower case letter represent symbols in Erlang that simply stand for themselves. In Python, we generally use strings for this purpose. We won't use symbols (or tuples) until part 2.</dd></dl><h2>Watching Recursion<a name="auto3"></a></h2><p>Let's modify our earlier Python version of the factorial function to watch it in action. To make it easier to compare the Python and Erlang versions, I'm going to start capitilizing the Python variable names.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">factorialD</span>(<span class="py-src-parameter">N</span>) :
+    <span class="py-src-keyword">print</span> <span class="py-src-string">&quot;Entering&quot;</span>, <span class="py-src-variable">N</span>
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">N</span> == <span class="py-src-number">0</span> : <span class="py-src-variable">Ans</span> = <span class="py-src-number">1</span>
+    <span class="py-src-keyword">else</span>      : <span class="py-src-variable">Ans</span> = <span class="py-src-variable">N</span> * <span class="py-src-variable">factorialD</span>(<span class="py-src-variable">N</span>-<span class="py-src-number">1</span>)
+    <span class="py-src-keyword">print</span> <span class="py-src-string">&quot;Returning&quot;</span>, <span class="py-src-variable">N</span>, <span class="py-src-variable">Ans</span>
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">Ans</span>
+</pre><pre class="python-interpreter">
+&gt;&gt;&gt; import samples
+&gt;&gt;&gt; samples.factorialD(5)
+Entering 5
+Entering 4
+Entering 3
+Entering 2
+Entering 1
+Entering 0
+Returning 0 1
+Returning 1 1
+Returning 2 2
+Returning 3 6
+Returning 4 24
+Returning 5 120
+120
+&gt;&gt;&gt; 
+</pre><p>Notice that we progress down the recursive rabbit hole, and finally reaching the bottom, and then on the way back up actually do the computation.</p><h2>Accumulators and Tail Recursion<a name="auto4"></a></h2><p>Now let's try another version of the factorial function. Again, we'll place a print statement stratigically so we can follow the action.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">factorial2</span>(<span class="py-src-parameter">N</span>, <span class="py-src-parameter">ACC</span>=<span class="py-src-number">1</span>) :
+    <span class="py-src-keyword">print</span> <span class="py-src-string">&quot;Entering with&quot;</span>, <span class="py-src-variable">N</span>, <span class="py-src-variable">ACC</span>
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">N</span> == <span class="py-src-number">0</span> : <span class="py-src-keyword">return</span> <span class="py-src-variable">ACC</span>
+    <span class="py-src-keyword">else</span>      : <span class="py-src-keyword">return</span> <span class="py-src-variable">factorial2</span>(<span class="py-src-variable">N</span>-<span class="py-src-number">1</span>, <span class="py-src-variable">ACC</span>*<span class="py-src-variable">N</span>)
+</pre><pre class="python-interpreter">
+&gt;&gt;&gt; import samples
+&gt;&gt;&gt; samples.factorial2(5)
+Entering with 5 1
+Entering with 4 5
+Entering with 3 20
+Entering with 2 60
+Entering with 1 120
+Entering with 0 120
+120
+&gt;&gt;&gt;
+</pre><p>Now the computation is done on the way down through the recursion, carrying the partial result along in ACC. The final result is simply popped back up through the nested returns. Notice that by using a named parameter for ACC in our Python version, it can be omitted on the initial call and will be automatically assigned the correct initial value.</p><p>Now, if the Erlang compiler (not Python) can detect that for all clauses in a function, no actual computation takes place after each recursive return, it will simply not push the call stack down for new invocations, but rather reuse the stack space of the previous one. This is called &quot;tail recursion&quot;. It has two big advantages. It is more efficient, just a single return instead of many redundant ones, and it makes infinite recursion possible without overflowing the stack. And infinite recursion is the only way in Erlang to have an infinite loop. </p><p>Here is the Erlang version of our tail recursive &quot;factorial&quot;.</p><pre class="python-interpreter">
+ factorial2(N)     -&gt; factorial2(N,1).
+ factorial2(0,ACC) -&gt; ACC;
+ factorial2(N,ACC) -&gt; factorial2(N-1, ACC*N).
+</pre><p>Notice that there are two function definitions, each ending with a period. The first takes a single argument and is the called from the outside. The definition with two arguments carries the accumulated result and finally returns it. This second definition satisfies the conditions for tail recursion. Remember that we made ACC a named argument in the Python version to get roughly the same effect. Here is a sample run of the Erlang code.</p><pre class="python-interpreter">
+6&gt; c(samples).
+{ok,samples}
+7&gt; samples:factorial2(6).
+720
+</pre><h2>List Processing<a name="auto5"></a></h2><p>Consider the following dialog with the Erlang interactive shell.</p><pre class="python-interpreter">
+Eshell V5.6.3  (abort with ^G)
+1&gt; A = [1,2,3,4].
+[1,2,3,4]
+2&gt; [H|T] = A.
+[1,2,3,4]
+3&gt; H.
+1
+4&gt; T.
+[2,3,4]
+</pre><p>An Erlang list looks very much like a Python one. In line 1 the variable A is bound to the  list [1,2,3,4]. In line 2 we can really see that &quot;=&quot; is no simple assignment operator. It rather tries to unify the left and right hand sides, assigning values to unbound variables as needed. In this case the unbound variable H is set to the head of the list, &quot;1&quot; and T is to the tail. The pipe character &quot;|&quot; has a special meaning. As in Python, commas in Erlang seperate items in the list but &quot;|&quot; seperates the first item from all the rest.</p><p>In Erlang, this syntax can also be used on the right hand side to build lists. Consider.</p><pre class="python-interpreter">
+2&gt; [4 | [5,6,7]].
+[4,5,6,7]
+</pre><p>Here, we are supplying the head and tail and the &quot;|&quot; operator combines them to a single list.</p><p>Python does not have anything like the &quot;|&quot; operator, but we can emulate the action easily.</p><pre class="shell">
+&quot;[H|T] = L&quot; in Erlang becomes &quot;H=L[0]; T=L[1:]&quot; in Python.
+
+&quot;L = [H|T]&quot; in Erlang becomes &quot;L = [H]+T&quot; in Python.
+</pre><p>Both Python and Erlang can concatenate lists. Python simply uses the &quot;+&quot; operator. In Erlang the operator is &quot;++&quot;.</p><pre class="python-interpreter">
+In Python
+
+&gt;&gt;&gt; [1,2,3] + [5,6,7]
+[1, 2, 3, 5, 6, 7]
+&gt;&gt;&gt; 
+
+And in Erlang
+
+Eshell V5.6.3  (abort with ^G)
+1&gt; [1,2,3] ++ [6,7,8].
+[1,2,3,6,7,8]
+2&gt; 
+</pre><p>Let's look at a simple example using lists. We will sum the elements which are assumed to be numbers. Here's two Python versions, the second one is tail recursive.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">sum</span>(<span class="py-src-parameter">L</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">L</span> : <span class="py-src-keyword">return</span> <span class="py-src-number">0</span>
+    <span class="py-src-keyword">else</span>     : <span class="py-src-keyword">return</span> <span class="py-src-variable">L</span>[<span class="py-src-number">0</span>] + <span class="py-src-variable">sum</span>(<span class="py-src-variable">L</span>[<span class="py-src-number">1</span>:])
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">suma</span>(<span class="py-src-parameter">L</span>, <span class="py-src-parameter">Acc</span>=<span class="py-src-number">0</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">L</span> : <span class="py-src-keyword">return</span> <span class="py-src-variable">Acc</span>
+    <span class="py-src-keyword">else</span>     : <span class="py-src-keyword">return</span> <span class="py-src-variable">suma</span>(<span class="py-src-variable">L</span>[<span class="py-src-number">1</span>:], <span class="py-src-variable">Acc</span>+<span class="py-src-variable">L</span>[<span class="py-src-number">0</span>])
+</pre><p>Let's test them quickly</p><pre class="python-interpreter">
+&gt;&gt;&gt; import samples
+&gt;&gt;&gt; samples.sum([1,2,3,4,5])
+15
+&gt;&gt;&gt; samples.suma([1,2,3,4,5])
+15
+&gt;&gt;&gt; 
+</pre><p>And the Erlang version are basically the same.</p><pre class="python-interpreter">
+ sum([]) -&gt; 0;
+ sum([H|T]) -&gt;  H + sum(T).
+
+ suma(L) -&gt; suma(L,0).
+ suma([],Acc)    -&gt; Acc;
+ suma([H|T],Acc) -&gt; suma(T, Acc+H).
+ </pre><p>Let's run it in the Erlang shell</p><pre class="python-interpreter">
+ Eshell V5.6.3  (abort with ^G)
+ 1&gt; c(samples.erl).
+ {ok,samples}
+ 2&gt; samples:sum([1,2,3,4,5,6]).
+ 21
+ 3&gt; samples:suma([1,2,3,4,5,6]).
+ 21
+ 4&gt;
+</pre><h2>Quicksort in Python and Erlang<a name="auto6"></a></h2><p>Finally, let's look at the classic Quicksort algorithm in both Python and Erlang.</p><p>The algorithm is beautifull in its simple recursion and may remind you of the &quot;Tower of Hanoi&quot;, another project on this site. Basically, a list of items is seperated into two lists based on picking a random element from the list, which we call the pivot. Items greater than the pivot go to one list and those less than to the other. Those equal to the pivot, if any, are assigned uniformily to one of the two lists. Here is a Python version of the split function, using only recursion. (no while loop)</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">split</span>(<span class="py-src-parameter">P</span>, <span class="py-src-parameter">L</span>, <span class="py-src-parameter">A</span>=[], <span class="py-src-parameter">B</span>=[]) :
+    <span class="py-src-keyword">if</span>   <span class="py-src-keyword">not</span> <span class="py-src-variable">L</span> : <span class="py-src-keyword">return</span> [<span class="py-src-variable">A</span>,<span class="py-src-variable">B</span>]
+    <span class="py-src-variable">H</span> = <span class="py-src-variable">L</span>[<span class="py-src-number">0</span>]                <span class="py-src-comment"># H and T assigned only once</span>
+    <span class="py-src-variable">T</span> = <span class="py-src-variable">L</span>[<span class="py-src-number">1</span>:]
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">H</span> &lt;= <span class="py-src-variable">P</span> : <span class="py-src-keyword">return</span> <span class="py-src-variable">split</span>(<span class="py-src-variable">P</span>, <span class="py-src-variable">T</span>, [<span class="py-src-variable">H</span>]+<span class="py-src-variable">A</span>, <span class="py-src-variable">B</span>    )
+    <span class="py-src-keyword">else</span>      : <span class="py-src-keyword">return</span> <span class="py-src-variable">split</span>(<span class="py-src-variable">P</span>, <span class="py-src-variable">T</span>, <span class="py-src-variable">A</span>,     [<span class="py-src-variable">H</span>]+<span class="py-src-variable">B</span>)
+</pre><p>Take a deep breath. This is the trickiest bit of code you'll see here. The recursion is replacing what would normally be a while loop. Each recursive call operates on the tail of the previous call, assigning the head to one of the two output lists. The output lists are carried the recursion and the whole thing is nicely tail recursive.</p><pre class="python-interpreter">
+A sample run
+
+&gt;&gt;&gt; samples.split(5,[1,2,3,4,5,6,7,8,9])
+[[5, 4, 3, 2, 1], [9, 8, 7, 6]]
+&gt;&gt;&gt; 
+</pre><p>Once we have the function to split lists, the sort itself is not difficult. To sort a list, including the recursive sub-lists, we just use the head of the list as the pivot, split the tail into two lists, sort each of them and finally recombine everthing with Python list concatenation. Here is the code.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">sort</span>(<span class="py-src-parameter">L</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">L</span> : <span class="py-src-keyword">return</span> []
+    <span class="py-src-variable">H</span> = <span class="py-src-variable">L</span>[<span class="py-src-number">0</span>]                <span class="py-src-comment"># H and T assigned only once</span>
+    <span class="py-src-variable">T</span> = <span class="py-src-variable">L</span>[<span class="py-src-number">1</span>:]
+    [<span class="py-src-variable">A</span>,<span class="py-src-variable">B</span>] = <span class="py-src-variable">split</span>(<span class="py-src-variable">H</span>,<span class="py-src-variable">T</span>)
+    <span class="py-src-keyword">print</span> <span class="py-src-string">&quot;Pivot %s: %s --&gt; %s %s&quot;</span> % (<span class="py-src-variable">H</span>,<span class="py-src-variable">T</span>,<span class="py-src-variable">A</span>,<span class="py-src-variable">B</span>)
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">sort</span>(<span class="py-src-variable">A</span>) + [<span class="py-src-variable">H</span>] + <span class="py-src-variable">sort</span>(<span class="py-src-variable">B</span>)
+</pre><p>To make it a little more interesting, we print the results of each split; the pivot value, the input list and the outputs.</p><pre class="python-interpreter">
+&gt;&gt;&gt; samples.sort([5,4,3,6,7,8,4,3])
+Pivot 5: [4, 3, 6, 7, 8, 4, 3] --&gt; [3, 4, 3, 4] [8, 7, 6]
+Pivot 3: [4, 3, 4] --&gt; [3] [4, 4]
+Pivot 3: [] --&gt; [] []
+Pivot 4: [4] --&gt; [4] []
+Pivot 4: [] --&gt; [] []
+Pivot 8: [7, 6] --&gt; [6, 7] []
+Pivot 6: [7] --&gt; [] [7]
+Pivot 7: [] --&gt; [] []
+[3, 3, 4, 4, 5, 6, 7, 8]
+&gt;&gt;&gt; 
+</pre><p>Finally, let's see the whole program in Erlang.</p><pre class="python-interpreter">
+split(P,L) -&gt; split(P,L,[],[]).
+ 
+split(_,[],A,B) -&gt; [A,B];
+split(P,[H|T],A,B) when H =&lt; P -&gt; split(P,T,[H|A],  B);
+split(P,[H|T],A,B)             -&gt; split(P,T,   A,[H|B]).
+ 
+
+sort( []   ) -&gt; [];
+sort([H|T])  -&gt;
+        [A,B] = split(H,T),
+        io:format(&quot;Pivot ~p: ~p ~p ~p~n&quot;,[H,T,A,B]),
+        sort(A) ++ [H] ++ sort(B).
+</pre><p>And here's it in action.</p><pre class="python-interpreter">
+Eshell V5.6.3  (abort with ^G)
+1&gt; samples:sort([5,4,3,6,7,8,4,3]).
+Pivot 5: [4,3,6,7,8,4,3] [3,4,3,4] [8,7,6]
+Pivot 3: [4,3,4] [3] [4,4]
+Pivot 3: [] [] []
+Pivot 4: [4] [4] []
+Pivot 4: [] [] []
+Pivot 8: [7,6] [6,7] []
+Pivot 6: [7] [] [7]
+Pivot 7: [] [] []
+[3,3,4,4,5,6,7,8]
+2&gt;
+</pre><h2>Conclusion<a name="auto7"></a></h2><p>Of course, there is much more to Erlang what's shown here. But in my experience, getting very familiar with this particular pattern of programming was the necessary first step in working with functional programs. If you are new to this, I would suggest that you give yourself some challenges, for example, zip two lists together or append two lists without using the &quot;+&quot; or &quot;++&quot; operators. You'll make lots of mistakes (and find them) but that is often a necessary part of the learning process. Good Luck and have fun.</p></div><p><a href="../index.html">Index</a></p></body></html>

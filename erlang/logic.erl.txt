@@ -1,0 +1,84 @@
+-module(logic).
+-export([nandG/1,andG/1,xorG/1,monitor/1,testAnd/2,testXor/2]).
+
+propogate(Who, Prev, Val, Con) ->
+	% io:format("~p was ~p xmits ~p to ~p~n", [Who, Prev, Val, Con]),
+	prop2 (Con, Val).
+	
+prop2([],Val) -> Val;
+prop2([{Gate,Input}|T],Val) -> Gate ! {Input, Val}, prop2(T,Val).
+
+nandG(Tag) -> spawn(fun() -> nandG(Tag,1,1,99,[]) end).
+
+nandG(Tag,A,B,Prev,Con) ->
+ 	C = 1-(A band B),
+ 	if not (Prev==C) ->
+ 	  propogate(Tag, Prev, C, Con), nandG(Tag,A,B,C,Con);
+ 	true -> 
+  	  receive
+	    {a,V} -> nandG(Tag,V,B,C,Con);
+	    
+	    {b,V} -> nandG(Tag,A,V,C,Con);
+	    {connect, X} -> 
+	        propogate(Tag,Prev,C,X),
+	        nandG(Tag,A,B,C,X)
+	  end
+	end.
+
+andG(Tag) ->
+	G1 = logic:nandG(g1),
+	G2 = logic:nandG(g2),
+	G1 ! {connect, [{G2,a}]},    % internal connection
+    spawn(fun() -> andG(Tag,G1,G2) end).
+    
+andG(Tag, G1, G2) ->
+  	receive
+      {a,V}        -> G1 ! {a,V}, andG(Tag,G1,G2);
+      {b,V}        -> G1 ! {b,V}, andG(Tag,G1,G2);
+	  {connect, X} -> G2 ! {connect, X}, andG(Tag,G1,G2)
+	end.
+
+xorG(Tag) ->
+	I1 = logic:nandG(i1),     % two inverters (just use one input of nand)
+	I2 = logic:nandG(i2),
+	N1 = logic:nandG(n1),     % three 2 input nand gates
+	N2 = logic:nandG(n2),
+	N3 = logic:nandG(n3),
+	
+	I1 ! {connect, [{N1,b}]}, % internal connections
+	I2 ! {connect, [{N2,a}]},
+	N1 ! {connect, [{N3,a}]},
+	N2 ! {connect, [{N3,b}]},
+	spawn(fun() -> xorG(Tag,N1,N2,N3,I1,I2) end).
+    
+xorG(Tag,N1,N2,N3,I1,I2) ->
+  	receive
+      {a,V}        -> N1 ! {a,V}, I2 ! {a,V}, xorG(Tag,N1,N2,N3,I1,I2);
+      {b,V}        -> N2 ! {b,V}, I1 ! {a,V}, xorG(Tag,N1,N2,N3,I1,I2);
+	  {connect, X} -> N3 ! {connect, X}     , xorG(Tag,N1,N2,N3,I1,I2)
+	end.
+
+monitor(Tag) -> spawn(fun() -> monitor(Tag,0) end).
+monitor(Tag,_) ->
+  	receive
+      {a,V} -> io:format("Monitor ~p reads ~p~n", [Tag,V]), monitor(Tag,V)
+	end.
+
+testXor(A, B) ->
+	Mon = monitor(monitor),
+	Xor = xorG(xorGate),
+	Xor ! { connect, [{Mon, a} ]},
+	Xor ! {a,A},
+	Xor ! {b,B}.
+	
+testAnd(A, B) ->
+	G1 = logic:nandG(g1),
+	G2 = logic:nandG(g2),
+	io:format("Connecting G1.C to G2.A~n",[]),
+	timer:sleep(10),
+	G1 ! {connect, [{G2,a}]},
+	io:format("Dropping G1.A~n",[]),
+	timer:sleep(10),
+	G1 ! {a,A},
+	G1 ! {b,B}.
+

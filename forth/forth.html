@@ -1,0 +1,425 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: FORTH - A simple stack oriented language</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">FORTH - A simple stack oriented language</h1><div class="toc"><ol><li><a href="#auto0">What is Forth?</a></li><li><a href="#auto1">Using the Data Stack</a></li><li><a href="#auto2">Built in primitive words for data stack manipulation</a></li><li><a href="#auto3">Defining new words</a></li><li><a href="#auto4">Compiling Words to Pcode</a></li><li><a href="#auto5">BEGIN ... UNTIL Control structure</a></li><li><a href="#auto6">IF, ELSE, THEN Control Structure</a></li><li><a href="#auto7">Variables, Constants and the Heap</a></li><li><a href="#auto8">Other Issues</a></li></ol></div><div class="content"><h2>What is Forth?<a name="auto0"></a></h2><p>In a nutshell, Forth is a combination compiler and interpreter. The compiler translate source
+code not to machine code like we saw in the previous chapter, but into instructions for a
+&quot;virtual&quot; machine, which we'll refer to as &quot;pcode&quot;. The same idea is used in Java and Python
+and is very in modern dynamic languages.</p><p>However, in Forth, we program at this pcode level, at what we might almost call an assembly
+language for the virtual machine. But it is language that can extended in interesting ways
+that give it quite a dynamic character.</p><p>With Forth you play what I would like to call &quot;snippets of computation&quot;, referred to as &quot;words&quot; that manipulate a push down data stack directly or get strung together to build (compile) new &quot;words&quot;, which in turn do the same things just one level higher.</p><p>Although no longer a commonly used, Forth has features that make it rewarding to study. The language has a wonderful minimalism that can be appreciated only with the study of example code.</p><p>Forth was a good compromise for building programs relatively easily, compared with
+assembler, that would use surprisely little memory and could be run surprisely fast. I built a system with a resident compiler, interpreter and Forth appliction code with concurrent threads all sitting in a few kilobytes of computer memory and running at about half the speed of the same program written in assembler.</p><p>According to Wikipedia, Forth is still used for such things as boot loaders, embedded systems and space applications (refs). There is an active implementation by the GNU Project.</p><p>In this chapter we'll build a small Forth compiler/interpreter system in Python and examine it in detail. Our implementation is very basic and small. Numbers (floats and ints) are the only data type, and I/O is only through the terminal.</p><p> Later on, we'll briefly look at the application mentioned above, a process control system for a newspaper mailroom. Sit back and enjoy the ride.</p><p>A word about quoting convention. If I use a word in all caps it is a Forth word. Our Forth
+is actually case insensitive, as you'll see, but traditionally Forth programs were in upper case.
+Words with mixed case are entities in the Python code. TOS is top-of-stack. Other words will
+be quoted when they stand for themselves.</p><h2>Using the Data Stack<a name="auto1"></a></h2><p>The &quot;data stack&quot; is the central feature, like the stove in your kitchen. And because we manipulate it directly, we have to compromise a little for the language. We have to get comfortable working in postfix.</p><p>Let's jump into an example. <a href="forth.py">Click Here to access forth.py</a></p><pre class="shell">
+$ python forth.py
+Forth&gt; 5 6 + 7 8 + * .
+165
+</pre><p>Here we are evaluating the product of two sums &quot;(5+6)*(7+8)&quot; which in normal infix notation requires that the sums be placed in parenthesis to ensure the multiplication follows the additions. Now, in a prefix notation, like that used in the Lisp language, one more pair of parans are needed &quot;(* (+ 5 6) (+ 7 8))&quot;. But with Forth we use postfix notation and the need for parens simply disappears. Operators are simply placed where they are used in the computation.</p><p>(A side note. If, by chance, you know some Japanese then you are aware that thinking in postfix is not that unnatural)</p><p>We can see what is going on a little more clear by using the Forth word &quot;dump&quot; to display the data stack at any point in time. Let's go a little wild and show the data stack after each single operation.</p><pre class="shell">
+Forth&gt; 5 dump 6 dump + dump 7 dump 8 dump + dump * dump
+ds =  [5]
+ds =  [5, 6]
+ds =  [11]
+ds =  [11, 7]
+ds =  [11, 7, 8]
+ds =  [11, 15]
+ds =  [165]
+Forth&gt; 
+</pre><p>Hopefully that will make it crystal clear.</p><h2>Built in primitive words for data stack manipulation<a name="auto2"></a></h2><p>Along with add, subtract, multiply and divide there are other basic builtin words that manipulate the stack as well.</p><ul><li> DUP duplicates the top of stack (TOS)</li><li> SWAP interchanges the top two elements</li><li> DROP pops the TOS discarding it</li><li> &quot;.&quot;  pops and prints the TOS</li><li> &quot;=&quot;  pops the top two elements, compares them, and push 1 onto the stack if there are equal, and 0 if not</li></ul><p>These can all be combined in clever ways. Here are two examples.</p><pre class="shell">
+Forth&gt; # Lets square and print the TOS
+Forth&gt; 25 dup * .
+625
+Forth&gt; # Lets negate the TOS and print it
+Forth&gt; 42 0 swap - .
+-42
+Forth&gt; 
+</pre><p>Here is the Python code for some of the basic runtime functions in forth.py. Our data stack is simply called &quot;ds&quot; and is a python list. We use the list &quot;append&quot; method to push items onto the stack and its &quot;pop&quot; method to get (and drop) the top element. Each basic word is a tiny function with two arguments. These functions do not use these arguments but
+we'll later see other runtime functions that will.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rAdd</span> (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">a</span>+<span class="py-src-variable">b</span>)
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rMul</span> (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">a</span>*<span class="py-src-variable">b</span>)
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rSub</span> (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">a</span>-<span class="py-src-variable">b</span>)
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rDiv</span> (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">a</span>/<span class="py-src-variable">b</span>)
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rEq</span>  (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">int</span>(<span class="py-src-variable">a</span>==<span class="py-src-variable">b</span>))
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rGt</span>  (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">int</span>(<span class="py-src-variable">a</span>&gt;<span class="py-src-variable">b</span>))
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rLt</span>  (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">int</span>(<span class="py-src-variable">a</span>&lt;<span class="py-src-variable">b</span>))
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rSwap</span>(<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">a</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">b</span>=<span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>(); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">a</span>); <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">b</span>)
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rDup</span> (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">ds</span>[-<span class="py-src-number">1</span>])
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rDrop</span>(<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>()
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rOver</span>(<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-variable">ds</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">ds</span>[-<span class="py-src-number">2</span>])
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rDump</span>(<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-keyword">print</span> <span class="py-src-string">&quot;ds = &quot;</span>, <span class="py-src-variable">ds</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rDot</span> (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) : <span class="py-src-keyword">print</span> <span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>()
+</pre><p>Some of these could, of course, be done more efficiently but we'll opt for clarity. Notice the order of operations, especially with divide and subtract. Also, with the divide operator we are using the Python &quot;/&quot; so if at least one argument is a float, the result will be float. If both are integers, then integer division is done.</p><p>A reference to each of these functions is in the lookup table &quot;rDict&quot; which matches operators like &quot;+&quot; to their function (rAdd). These dictionary entries are straightforward.</p><h2>Defining new words<a name="auto3"></a></h2><p>Let's define a word NEGATE to replace the TOS with its negative. Every word definition starts
+with a &quot;:&quot; immediately followed by the word we want to define. Then everything following up to
+the closing &quot;;&quot; becomes the body of the definition. So let's define NEGATE and test it and
+then do the same for SQR.</p><pre class="shell">
+Forth&gt; : negate 0 swap - ;
+Forth&gt; 5 negate .
+-5
+Forth&gt; : sqr dup * ;
+Forth&gt; 6 sqr .
+36
+Forth&gt; 
+</pre><h2>Compiling Words to Pcode<a name="auto4"></a></h2><p>The first step in compilation is lexical parsing, which in Forth is really simple. The &quot;tokenize&quot;
+function first strips comments, which in this little compiler is anything from &quot;#&quot; to the end of
+a line. Then it simply splits the text to a list of words, breaking on whitespace. Let's
+watch this from the Python prompt.</p><pre class="shell">
+&gt;&gt;&gt; import forth
+&gt;&gt;&gt; forth.tokenizeWords(&quot;5 6 + .  # this is a comment&quot;)
+&gt;&gt;&gt; forth.words
+['5', '6', '+', '.']
+&gt;&gt;&gt; 
+</pre><p>When the compiler is not in the middle
+of defining a new word, or, as we'll see later, building a control structure, it operates in
+what is called &quot;immediate mode&quot;. This means that a single word will be compiled and returned.</p><pre class="shell">
+&gt;&gt;&gt; forth.compile()
+Forth&gt; 5 6 + .
+[&lt;function rPush at 0x9bdf5a4&gt;, 5]
+&gt;&gt;&gt; forth.compile()
+[&lt;function rPush at 0x9bdf5a4&gt;, 6]
+&gt;&gt;&gt; forth.compile()
+[&lt;function rAdd at 0x9bdf1ec&gt;]
+&gt;&gt;&gt; forth.compile()
+[&lt;function rDot at 0x9bdf48c&gt;]
+&gt;&gt;&gt; forth.words
+[]
+&gt;&gt;&gt; 
+</pre><p>Notice how running the compile function automatically prompts us for input.</p><p>Compiled code comes in lists. A number, either a integer or float compiles to an &quot;rPush&quot; of
+the number onto the data stack. &quot;+&quot; and &quot;.&quot; simply compile to their corresponding runtime 
+functions. Let's look at the Python &quot;compile&quot; function.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">compile</span>() :
+    <span class="py-src-variable">pcode</span> = []; <span class="py-src-variable">prompt</span> = <span class="py-src-string">&quot;Forth&gt; &quot;</span>
+    <span class="py-src-keyword">while</span> <span class="py-src-number">1</span> :
+        <span class="py-src-variable">word</span> = <span class="py-src-variable">getWord</span>(<span class="py-src-variable">prompt</span>)  <span class="py-src-comment"># get next word</span>
+        <span class="py-src-variable">cAct</span> = <span class="py-src-variable">cDict</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">word</span>)  <span class="py-src-comment"># Is there a compile time action ?</span>
+        <span class="py-src-variable">rAct</span> = <span class="py-src-variable">rDict</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">word</span>)  <span class="py-src-comment"># Is there a runtime action ?</span>
+
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">cAct</span> : <span class="py-src-variable">cAct</span>(<span class="py-src-variable">pcode</span>)   <span class="py-src-comment"># run at compile time</span>
+        <span class="py-src-keyword">elif</span> <span class="py-src-variable">rAct</span> :
+            <span class="py-src-keyword">if</span> <span class="py-src-variable">type</span>(<span class="py-src-variable">rAct</span>) == <span class="py-src-variable">type</span>([]) :
+                <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">rRun</span>)     <span class="py-src-comment"># Compiled word.</span>
+                <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">word</span>)     <span class="py-src-comment"># for now do dynamic lookup</span>
+            <span class="py-src-keyword">else</span> : <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">rAct</span>)  <span class="py-src-comment"># push builtin for runtime</span>
+        <span class="py-src-keyword">else</span> :
+            <span class="py-src-comment"># Number to be pushed onto ds at runtime
+</span>            <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">rPush</span>)
+            <span class="py-src-keyword">try</span> : <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">int</span>(<span class="py-src-variable">word</span>))
+            <span class="py-src-keyword">except</span> :
+                <span class="py-src-keyword">try</span>: <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">float</span>(<span class="py-src-variable">word</span>))
+                <span class="py-src-keyword">except</span> : 
+                    <span class="py-src-variable">pcode</span>[-<span class="py-src-number">1</span>] = <span class="py-src-variable">rRun</span>     <span class="py-src-comment"># Change rPush to rRun</span>
+                    <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">word</span>)   <span class="py-src-comment"># Assume word will be defined</span>
+        <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">cStack</span> : <span class="py-src-keyword">return</span> <span class="py-src-variable">pcode</span>
+        <span class="py-src-variable">prompt</span> = <span class="py-src-string">&quot;... &quot;</span>
+</pre><p>Part of this may be a bit obscure. Basically, we get the next word using &quot;getWord&quot;, which
+if it needs more input, will prompt for it. This &quot;compile&quot; function controls whether
+the prompt is &quot;Forth&gt; &quot; or &quot;...  &quot;. We'll see how that is used in a bit. If the word names a
+basic runtime action in &quot;rDict&quot;, then it is translated to a call of that function. If the
+word can be made into an integer or float then &quot;rPush&quot; (also a builtin) becomes the translation followed by
+the actual number to be pushed onto the data stack. In immediate mode a single input word
+will be compiled and returned.</p><p>Next, let's compile a new word.</p><pre class="shell">
+&gt;&gt;&gt; forth.compile()
+Forth&gt; : negate 0 swap - ;
+[]
+</pre><p>No pcode is returned! But there is an interesting side effect</p><pre class="shell">
+&gt;&gt;&gt; forth.rDict['negate']
+[&lt;function rPush at 0x9fbe5a4&gt;, 0, &lt;function rSwap at 0x9fbe374&gt;, 
+ &lt;function rSub at 0x9fbe25c&gt;]
+&gt;&gt;&gt; 
+</pre><p>We have a new entry in the rDict which can now be used just like a builtin</p><pre class="shell">
+&gt;&gt;&gt; forth.compile()
+Forth&gt; 6 negate
+[&lt;function rPush at 0x9fbe5a4&gt;, 6]
+&gt;&gt;&gt; forth.compile()
+[&lt;function rRun at 0x9fbe56c&gt;, 'negate']
+&gt;&gt;&gt; 
+</pre><p>Notice in the &quot;compile&quot; function above the check for cAct in cDict. This is looking for a
+compile time function. These functions are helper functions for the compilation process. Both &quot;:&quot;
+and &quot;;&quot; are compile time words. Let's look at their corresponding python functions</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">cColon</span> (<span class="py-src-parameter">pcode</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">cStack</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;: inside Control stack: %s&quot;</span> % <span class="py-src-variable">cStack</span>)
+    <span class="py-src-variable">label</span> = <span class="py-src-variable">getWord</span>()
+    <span class="py-src-variable">cStack</span>.<span class="py-src-variable">append</span>((<span class="py-src-string">&quot;COLON&quot;</span>,<span class="py-src-variable">label</span>))  <span class="py-src-comment"># flag for following &quot;;&quot;</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">cSemi</span> (<span class="py-src-parameter">pcode</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">cStack</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;No : for ; to match&quot;</span>)
+    <span class="py-src-variable">code</span>,<span class="py-src-variable">label</span> = <span class="py-src-variable">cStack</span>.<span class="py-src-variable">pop</span>()
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">code</span> != <span class="py-src-string">&quot;COLON&quot;</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;: not balanced with ;&quot;</span>)
+    <span class="py-src-variable">rDict</span>[<span class="py-src-variable">label</span>] = <span class="py-src-variable">pcode</span>[:]       <span class="py-src-comment"># Save word definition in rDict</span>
+    <span class="py-src-keyword">while</span> <span class="py-src-variable">pcode</span> : <span class="py-src-variable">pcode</span>.<span class="py-src-variable">pop</span>()
+</pre><p>You can see that an entry is pushed onto the cStack with the &quot;:&quot; and later popped by the &quot;;&quot;.
+The &quot;:&quot; word gets a label from the input, and if it were not available you would be prompted for
+it with &quot;...&quot;. This label is saved for the &quot;;&quot; word to connect it with the compiled code and make an entry
+in rDict. Once this happens the code is then erased. Now,
+since cStack is not empty during this time, compilation once started by &quot;:&quot; must proceed to the
+matching &quot;;&quot;. Then we say that the compiler is running in the &quot;deferred&quot; mode.</p><p>So now let's look at other word groups that also use the cStack, forcing deferred compilation.</p><h2>BEGIN ... UNTIL Control structure<a name="auto5"></a></h2><p>The BEGIN and UNTIL words set up an iterative loop. UNTIL will pop the TOS and, if it is zero,
+will return control to the word following BEGIN. Here is an example</p><pre class="shell">
+&gt;&gt;&gt; import forth
+&gt;&gt;&gt; forth.main()
+Forth&gt; 5 begin dup . 1 - dup 0 = until
+5
+4
+3
+2
+1
+Forth&gt; 
+</pre><p>We start by pushing 5 onto the stack, print it, subtract 1, and repeat until it is zero.
+Notice the use of the word DUP twice, needed to preserve our number as we are not only counting it
+down, but also printing it and checking for zero.</p><p>Both BEGIN and UNTIL are compile time words. Here are their corresponding Python functions</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">cBegin</span> (<span class="py-src-parameter">pcode</span>) :
+    <span class="py-src-variable">cStack</span>.<span class="py-src-variable">append</span>((<span class="py-src-string">&quot;BEGIN&quot;</span>,<span class="py-src-variable">len</span>(<span class="py-src-variable">pcode</span>)))  <span class="py-src-comment"># flag for following UNTIL</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">cUntil</span> (<span class="py-src-parameter">pcode</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">cStack</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;No BEGIN for UNTIL to match&quot;</span>)
+    <span class="py-src-variable">code</span>,<span class="py-src-variable">slot</span> = <span class="py-src-variable">cStack</span>.<span class="py-src-variable">pop</span>()
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">code</span> != <span class="py-src-string">&quot;BEGIN&quot;</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;UNTIL preceded by %s (not BEGIN)&quot;</span> % <span class="py-src-variable">code</span>)
+    <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">rJz</span>)
+    <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">slot</span>)
+</pre><p>BEGIN generates no code. It simply pushes the address (len(pcode)) of the next word to come
+onto the control stack and, thereby, puts the compiler into deferred mode. UNTIL checks that
+it has a matching BEGIN and generates an rJZ call (Jump if Zero) back to the address
+saved. At runtim rJz will pop the TOS and do the jump if it is zero.</p><p>Here is a nice &quot;Forth-like&quot; word definition for computing the factorial of the TOS. This code
+has been put into a file &quot;fact1.4th&quot;</p><pre class="shell">
+# fact1.4th
+
+: fact                             #  n --- n!  replace TOS with its factorial
+  0 swap                           # place a zero below n
+  begin dup 1 - dup  1 = until     # make stack like 0 n ... 4 3 2 1
+  begin dump *  over 0 = until     # multiply till see the zero below answer
+  swap drop ;                      # delete the zero
+</pre><p>Notice the DUMP in the middle for debugging. Let's run this.</p><pre class="shell">
+&gt;&gt;&gt; import forth
+&gt;&gt;&gt; forth.main()
+Forth&gt; @fact1.4th
+Forth&gt; 5 fact .
+ds =  [0, 5, 4, 3, 2, 1]
+ds =  [0, 5, 4, 3, 2]
+ds =  [0, 5, 4, 6]
+ds =  [0, 5, 24]
+120
+Forth&gt; 
+</pre><h2>IF, ELSE, THEN Control Structure<a name="auto6"></a></h2><p>The format of this control structure is</p><pre class="shell">
+condition IF true-clause THEN
+
+  or
+
+condition IF true-clause ELSE false-clause THEN
+</pre><p>Once again, if you are somewhat familiar with Japanese grammer, this ordering will not seem
+terribly unnatural. Let's look at the compile time helpers for these words.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">cIf</span> (<span class="py-src-parameter">pcode</span>) :
+    <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">rJz</span>)
+    <span class="py-src-variable">cStack</span>.<span class="py-src-variable">append</span>((<span class="py-src-string">&quot;IF&quot;</span>,<span class="py-src-variable">len</span>(<span class="py-src-variable">pcode</span>)))  <span class="py-src-comment"># flag for following Then or Else</span>
+    <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-number">0</span>)                   <span class="py-src-comment"># slot to be filled in</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">cElse</span> (<span class="py-src-parameter">pcode</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">cStack</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;No IF for ELSE to match&quot;</span>)
+    <span class="py-src-variable">code</span>,<span class="py-src-variable">slot</span> = <span class="py-src-variable">cStack</span>.<span class="py-src-variable">pop</span>()
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">code</span> != <span class="py-src-string">&quot;IF&quot;</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;ELSE preceded by %s (not IF)&quot;</span> % <span class="py-src-variable">code</span>)
+    <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">rJmp</span>)
+    <span class="py-src-variable">cStack</span>.<span class="py-src-variable">append</span>((<span class="py-src-string">&quot;ELSE&quot;</span>,<span class="py-src-variable">len</span>(<span class="py-src-variable">pcode</span>)))  <span class="py-src-comment"># flag for following THEN</span>
+    <span class="py-src-variable">pcode</span>.<span class="py-src-variable">append</span>(<span class="py-src-number">0</span>)                     <span class="py-src-comment"># slot to be filled in</span>
+    <span class="py-src-variable">pcode</span>[<span class="py-src-variable">slot</span>] = <span class="py-src-variable">len</span>(<span class="py-src-variable">pcode</span>)            <span class="py-src-comment"># close JZ for IF</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">cThen</span> (<span class="py-src-parameter">pcode</span>) :
+    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">cStack</span> : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;No IF for ELSE for THEN to match&quot;</span>)
+    <span class="py-src-variable">code</span>,<span class="py-src-variable">slot</span> = <span class="py-src-variable">cStack</span>.<span class="py-src-variable">pop</span>()
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">code</span> <span class="py-src-keyword">not</span> <span class="py-src-keyword">in</span> (<span class="py-src-string">&quot;IF&quot;</span>,<span class="py-src-string">&quot;ELSE&quot;</span>) : <span class="py-src-variable">fatal</span>(<span class="py-src-string">&quot;THEN preceded by %s (not IF or ELSE)&quot;</span> % <span class="py-src-variable">code</span>)
+    <span class="py-src-variable">pcode</span>[<span class="py-src-variable">slot</span>] = <span class="py-src-variable">len</span>(<span class="py-src-variable">pcode</span>)             <span class="py-src-comment"># close JZ for IF or JMP for ELSE</span>
+</pre><p>This should look familiar after studying the compile time code for BEGIN and UNTIL. IF will
+generate a rJz to the ELSE if there is one, or, if not, to the THEN. An ELSE will complete the
+jump for the IF and set up an unconditional jump to be completed by the THEN. THEN has to
+complete whichever jump is needed, from an IF or ELSE.</p><p>Here is a second factorial word definition. Instead of using iteration with BEGIN and UNTIL, we use
+recursion, a topic that will be discussed later in more depth. And rather than using a
+flag for establishing an end-point to the computation, we'll use our new IF, THEN team.</p><pre class="shell">
+# fact2.4th  Recursive factorial       # n --- n!
+
+: fact  dup 1 &gt; if                     # if 1 (or 0) just leave on stack
+            dup 1 - fact               # next number down - get its factorial
+    dump    * then                     # and mult - leavin ans on stack
+  ;
+</pre><p>Again, a DUMP has been stratigically placed to watch the action</p><pre class="shell">
+Forth&gt; @fact2.4th
+Forth&gt; 5 fact .
+ds =  [5, 4, 3, 2, 1]
+ds =  [5, 4, 3, 2]
+ds =  [5, 4, 6]
+ds =  [5, 24]
+120
+Forth&gt; 
+</pre><h2>Variables, Constants and the Heap<a name="auto7"></a></h2><p>There comes a point when we need to store data outside of the data stack itself. We may want to
+more conveniently hold onto values independently of a changing data stack and we may want to
+store data in single or multi-dimensional arrays.</p><p>Forth systems set aside an area of memory for this purpose and contain a few builtins that are 
+ used to build words that, in turn, build other words. It's quite neat.</p><p>First, let's look at the builtins themselves. In our model the &quot;heap&quot; is simply a list of 20 integers.
+Obviously, it's not meant for real time.</p><pre class="python">
+<span class="py-src-variable">heap</span>     = [<span class="py-src-number">0</span>]*<span class="py-src-number">20</span>      <span class="py-src-comment"># The data heap</span>
+<span class="py-src-variable">heapNext</span> =  <span class="py-src-number">0</span>          <span class="py-src-comment"># Next avail slot in heap</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rCreate</span> (<span class="py-src-parameter">pcode</span>,<span class="py-src-parameter">p</span>) :
+    <span class="py-src-keyword">global</span> <span class="py-src-variable">heapNext</span>, <span class="py-src-variable">lastCreate</span>
+    <span class="py-src-variable">lastCreate</span> = <span class="py-src-variable">label</span> = <span class="py-src-variable">getWord</span>()      <span class="py-src-comment"># match next word (input) to next heap address</span>
+    <span class="py-src-variable">rDict</span>[<span class="py-src-variable">label</span>] = [<span class="py-src-variable">rPush</span>, <span class="py-src-variable">heapNext</span>]    <span class="py-src-comment"># when created word is run, pushes its address</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rAllot</span> (<span class="py-src-parameter">cod</span>,<span class="py-src-parameter">p</span>) :
+    <span class="py-src-keyword">global</span> <span class="py-src-variable">heapNext</span>
+    <span class="py-src-variable">heapNext</span> += <span class="py-src-variable">ds</span>.<span class="py-src-variable">pop</span>()                <span class="py-src-comment"># reserve n words for last create</span>
+</pre><p>Now, interestingly, both rCreate and rAllot are runtime words. When rCreate runs, the compiler is in immediate
+mode and the next word in the input (NOT in the pcode) will be the word being defined. The
+runtime action of the defined word will be to simply place its reserved heap address onto the data stack.
+ALLOT will actually reserve one or more words, advancing heapNext to be ready for a future CREATE.
+Let's look at an example. We'll use forth.main to both compile and execute our Forth code.</p><pre class="shell">
+&gt;&gt;&gt; import forth
+&gt;&gt;&gt; forth.main()
+Forth&gt; create v1 1 allot
+Forth&gt; create v2 3 allot
+Forth&gt; create v3 1 allot
+Forth&gt; dump
+ds =  []
+Forth&gt; v1 v2 v3 dump
+ds =  [0, 1, 4]
+Forth&gt; 
+</pre><p>Here we have created three new words V1, V2, and V3. Each has a corresponding heap address and
+when they are run each pushes its address. Notice the &quot;space&quot; between V2 and V3 due to the ALLOT
+used with the creation of V2.</p><p>And here is how we use these heap locations. Two builtins &quot;@&quot; and &quot;!&quot; fetch and set words in the
+heap. Let's play with this a bit</p><pre class="shell">
+&gt;&gt;&gt; import forth
+&gt;&gt;&gt; forth.main()
+Forth&gt; create v1 1 allot
+Forth&gt; create v2 3 allot
+Forth&gt; create v3 1 allot
+Forth&gt; ^D
+&gt;&gt;&gt; print forth.heapNext, forth.heap
+5 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+&gt;&gt;&gt; forth.main()
+Forth&gt; 22 v2 !          # set v2[0] = 22
+Forth&gt; 23 v2 1 + !      # set v2[1] = 23
+Forth&gt; v2 @ .           # print v2[0]
+22
+Forth&gt; ^D
+&gt;&gt;&gt; print forth.heapNext, forth.heap
+5 [0, 22, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+&gt;&gt;&gt; forth.rDict['v3']  # See definition of v3
+[&lt;function rPush at 0x8ba0454&gt;, 4]
+</pre><p>So, we created 2 simple variables (V1 and V3) and an array of 3 words V2. Dropping back into
+Python we can see the heap being modified and also a runtime definition for one of the variables.
+</p><p>Another useful builtin is &quot;,&quot; which pops the TOS and pushes it onto the heap at the next
+free location. This can be used instead of ALLOT to initialize variables to zero.</p><pre class="shell">
+&gt;&gt;&gt; forth.main()
+Forth&gt; : varzero create 0 , ;
+Forth&gt; varzero xyz
+Forth&gt; xyz @ .
+0
+</pre><p>Finally, there is a builtin DOES&gt; that works together with CREATE inside a definition. It takes
+all following words up to the closing &quot;;&quot; and appends them to the rDict entry for the word just created.
+First consider this definition and usage of a CONSTANT</p><pre class="shell">
+Forth&gt; : constant create , ;
+Forth&gt; 2009 constant thisYear
+Forth&gt; thisYear @ .
+2009
+</pre><p>That's fine, but there is nothing to prevent you from simply &quot;!&quot;ing thisYear to another value.
+It's the same as any variable. But if we instead do the following</p><pre class="shell">
+Forth&gt; : constant create , does&gt; @ ;
+Forth&gt; 2009 constant thisYear
+Forth&gt; thisYear .
+2009
+Forth&gt; ^D
+&gt;&gt;&gt; forth.rDict['thisyear']
+[&lt;function rPush at 0x9865454&gt;, 3, &lt;function rAt at 0x9865534&gt;]
+&gt;&gt;&gt; 
+</pre><p>then you can see how a call to rAt has been attached to thisYear's runtime. There is no need
+to use an &quot;@&quot; to retrieve its value and &quot;!&quot; cannot be used to change its value.</p><p>With these builtins, it is not difficult to make arrays, including multidimensional ones. We
+can even make primitive structs (like C) assigning constants for field offsets.</p><p>Like C, however, there is not much memory protection. If an array reference is out of bounds, it
+will simply write into something else. Of course, in this model, this will stay within our heap
+but in a C adaptation of this code, even that would be lost.</p><p>We'll end this section with a final factorial program, this time using variables. The code looks
+more like a traditional language, albeit in postfix</p><pre class="shell">
+# fact3.4th
+
+: variable create 1 allot ;            #   ---     create var and init to TOS
+  variable m
+  variable answer
+
+: fact                                 #  n --- n!  replace TOS with factorial
+     m !                               # set m to TOS
+  1 answer !                           # set answer = 1
+  begin
+    answer @ m @ dump * answer !       # set answer = answer * m
+    m @ 1 - m !                        # set m = m-1
+    m @ 0 = until                      # repeat until m == 0
+  answer @                             # return answer
+  ;
+
+ 15 fact .                             # compute 15! and print
+</pre><p>And now, let's run it</p><pre class="shell">
+Forth&gt; @fact3.4th
+ds =  [1, 15]
+ds =  [15, 14]
+ds =  [210, 13]
+ds =  [2730, 12]
+ds =  [32760, 11]
+ds =  [360360, 10]
+ds =  [3603600, 9]
+ds =  [32432400, 8]
+ds =  [259459200, 7]
+ds =  [1816214400, 6]
+ds =  [10897286400L, 5]
+ds =  [54486432000L, 4]
+ds =  [217945728000L, 3]
+ds =  [653837184000L, 2]
+ds =  [1307674368000L, 1]
+1307674368000
+Forth&gt; 
+</pre><p>Since our model is built in Python, we inherit its nice automatic switch to long integers.</p><p>Notice that the variables &quot;m&quot; and &quot;answer&quot; are defined outside the &quot;fact&quot; definition. We don't have
+ private local variables within a definition.</p><h2>Other Issues<a name="auto8"></a></h2><p>As mentioned earlier, Forth can be very efficient both with memory and CPU time. Consider the
+following bits of PDP-11 assembler code. It is a recreation of a little bit of our first Forth expression
+&quot;5 6 +&quot;.</p><pre class="shell">
+stack:
+         ...       ;      more space here for the stack to grow
+         6         ; &lt;--- r4 stack pointer (stack is upside down)
+         5
+ds:      0         ; base of stack         
+         
+         rPush     ; &lt;--- r3 tracks the pcode thread 
+         5
+         rPush
+         6
+         rAdd
+         .
+         .         ; thread continues ...
+         
+         
+rPush:   mov    (r3)+, -(r4)       ; ds.append[pcode[p]]; p += 1
+         jmp   @(r3)+              ; return to thread
+         
+rAdd:    add    (r4)+, (r4)        ; tmp=ds.pop(); ds[-1] += tmp
+         jmp   @(r3)+              ; return to thread
+         
+rDup:    mov    (r4),-(r4)         ; ds.append(ds[-1])
+         jmp   @(r3)+              ; return to thread
+</pre><p>This should look somewhat familiar from the assembler model in the previous chapter. We have
+the data stack on top, a bit of &quot;threaded&quot; code in the middle and 3 builtins. The threaded code
+(the name will be obvious in a minute) is essentially the same as our &quot;pcode&quot; array in the 
+Python model. Machine register r3 is our &quot;p&quot; indexe to the next word in the pcode. The
+program counter, PC jumps between the builtins. The instruction &quot;jmp @(r3)+&quot; loads the program
+counter with the memory word indexed by r3 and then increments r3 to point at the next word.
+The program execution weaves through the threaded code out of one builtin (rPush) and into
+the next (rAdd). Register r4 is the ds index. On the PDP-11 the stack grew downward and lower machine addresses were
+actually higher on the stack. The instruction &quot;mov (r3)+,-(r4)&quot; pushes the next word in
+the thread (5 say) onto the data stack, first decrementing r4 to the next higher stack location.</p><p>Now if we were writing this in assembler we might do the following</p><pre class="shell">
+        mov  #5, -(r4)        ; push 5 onto stack
+        mov  #6, -(r4)        ; push 6 onto stack
+        add  (r4)+,(r4)       ; add in stack
+</pre><p>But if we add up the memory use and execution cycles, only the &quot;jmp @(r3)+&quot; instructions, the needle, if
+you will, that sews the code together are missing. These jumps constitute very little overhead.</p><p>In the early 1980's I developed a process control system for a newspaper mailroom that tracked
+bundles of newspapers on conveyor belts. Each bundle had a specific chute designation which
+would deliver it to a truck being loaded. We put together a small Forth system in less than 1000
+lines of assembler. This system was concurrent having a special word so that one thread could yield control of the cpu to another. Like Forth itself, this application was divided into tiny pieces
+sewn back together. One pcode thread for example monitored keyboard input from one of the terminals.
+Another output messages to all the screens which included echoing
+input from either keyboard. Still other threads would handle a sensor on a belt or update a light
+display. Each thread had its own data stack but they shared variables on the heap and of course
+word definitions. There were no locking problems because the threads themselves yielded control
+only when safe to do so. Such a system was possible because throughput was only at human speed.</p><p>One final point. We used recursion in the second factorial example. This is unusual in Forth. Normally a word must
+be defined before being used in another definition. But in our compile function the last &quot;except&quot; clause allows us
+to build an rRun to an undefined word with the assumption that it will be defined before it is actually used. But
+this in turn leads to another issue. Our rRun runs a word dynamically, that is, it looks up the definition in rDict
+just before running it. Most Forths would not do that. It's expensive when the computation for most words is usually so
+small. So rather than following a pcode entry &quot;rRun&quot; with the name of a word, it would be reference to the words pcode and the dictionary lookup is avoided. This also has an interesting implication. If you redefine a word that has been used in the definition of other words, those other words do not change their behaviour. They are still locked to the
+old code. The programmer might well find this unexpected.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2009 Chris Meyers</p></div>
+<p><a href="../index.html">Index</a></p></body></html>

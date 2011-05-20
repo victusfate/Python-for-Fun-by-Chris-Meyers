@@ -1,0 +1,50 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Animals and the Tree of Knowledge</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Animals and the Tree of Knowledge</h1><div class="toc"><ol><li><a href="#auto0">What it Does</a></li><li><a href="#auto1">The Data Structure</a></li><li><a href="#auto2">The Code</a></li><li><a href="#auto3">Ideas for further Development</a></li></ol></div><div class="content"><span></span><h2>What it Does<a name="auto0"></a></h2><p>This little program builds a classification tree
+by interacting with the user. It starts off knowing only that a bird is an animal
+and bit by bit allows learns more as it interacts with you. Here is an example run.
+You would type everything that follows a '?'.</p><pre class="shell">
+   &gt;&gt;&gt; import animal
+   &gt;&gt;&gt; animal.main()
+   
+   Are you thinking of an animal? y
+   Is it a bird? n
+   What is the animals name? Dog
+   What question would distinguish a Dog from a bird? Does it have wings
+   If the animal were Dog the answer would be? n
+   
+   Are you thinking of an animal? y
+   Does it have wings? y
+   Is it a bird? n
+   What is the animals name? Bat
+   What question would distinguish a Bat from a bird? Does it have feathers
+   If the animal were Bat the answer would be? n
+   
+   Are you thinking of an animal? y
+   Does it have wings? y
+   Does it have feathers? y
+   Is it a bird? y
+   
+   Are you thinking of an animal? n
+   &gt;&gt;&gt;
+</pre><h2>The Data Structure<a name="auto1"></a></h2><p>This is a schematic of the knowledge tree built from the above dialog.</p><p><img src="animal.gif" /></p><h2>The Code<a name="auto2"></a></h2><p>The program is very simple. It starts with the top question and depending on the users
+yes or no response, chooses either the left or right fork down the tree. At the last
+element (the &quot;leaf&quot; node), it makes its guess. If the guess is wrong then it has the
+user input the name of a new animal and a question to distinguish the new animal from
+the guess. Then the tree is grown by one more node to accomodate the question and the
+new animal.</p><p>The <a href="animal.py">code</a> should be very straight forward.
+An object class is used for nodes in the tree. Each node contains a question plus pointers
+to left and right nodes. Leaf nodes simply contain the name of an animal and the value
+None in the pointer attributes.</p><p>The function &quot;yes&quot; is a convenience. It will recognize &quot;Yes&quot;, &quot;YES&quot;, &quot;Y&quot;, &quot;y&quot;, etc. all
+correctly, as well as similar variations of &quot;No&quot;. Otherwise it keeps asking the
+question.</p><p>I first saw this program in very old fashioned Basic about 20 years ago. The code
+was much more complex requiring separate arrays of strings and pointers. I was starting
+my new job in Holland and took it along. It was something of a hit. After several
+people played with it for an hour or so, it had developed a nice biological hierarchy,
+half in English and half in Dutch, of everyone who worked in the office!</p><h2>Ideas for further Development<a name="auto3"></a></h2><p>Enable the program to save its knowledge tree between runs. You might use the pickle
+mechanism. Or write a function that saves all the user responses so that they can
+be played back as a script via the UserInput module.</p><p>Make a command to display the knowledge tree on the screen using indenting. You might
+need to consider recursion for this. Alternatively map the tree with a graphics
+package like TKinter.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2003-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

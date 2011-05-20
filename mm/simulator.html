@@ -1,0 +1,208 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Simulator for a Mythical Machine</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Simulator for a Mythical Machine</h1><div class="toc"><ol><li><a href="#auto0">What is Machine Language</a></li><li><a href="#auto1">Design of MM</a></li><li><a href="#auto2">Machine Language for MM</a></li><li><a href="#auto3">Our First Program</a></li><li><a href="#auto4">The Python Simulator for MM</a></li><li><a href="#auto5">A more complex program</a></li><li><a href="#auto6">What's missing?</a></li></ol></div><div class="content"><span></span><p><a href="simulator.py">Click here for the Python code for the MM Simulator</a><h2>What is Machine Language<a name="auto0"></a></h2>
+
+Machine language is the basic language understood by the electronics of the
+computer's CPU (central processing unit). It is strictly numerical rather
+than having any sort of syntax you are used to with Python or perhaps other
+languages. Each type of CPU has its own unique machine language. The
+machine language for a Macintosh is very different from an Intel based
+PC.</p><p>Machine language is much simpler, in general, than high level languages
+that came later. Computers were first designed around just a few basic
+ideas. There needed to be a store of memory containing fixed sized
+numbers. There would be instructions to
+move numbers between memory and one or more special registers which
+could also hold numbers of the same size as the memory store. Other
+instructions
+would apply arithmetic operations to the numbers in the registers. Finally,
+special instructions could alter the flow of the program allowing repetition
+and conditional execution of instructions. What you do in Python when you use
+<code>while</code>, <code>for</code> and <code>if</code> statements.</p><p>Originally the numeric instructions were wired in with patch cords. Later
+someone had the bright (and simple) idea of using the memory store to hold both
+data and instructions. To make this work the numeric instructions had
+to be the same size as the numbers being stored in memory. Because almost
+all computers use the binary number system, this &quot;word size&quot; is expressed
+as a certain number of bits for each number. Practial computers have had
+word sizes from 12 to 64 bits.</p><p>In this study we will develop the Mythical Machine Language (MML) for, of
+course, the Mythical Machine (MM). Since we can't build a real machine we will
+create a small Python program to simulate its operation. MM is much
+simpler than any real computer but is still be capable of doing real
+computations. To make our task simpler MM is a decimal based computer. Each of
+its memory words can hold a 6 digit decimal number. The machine language
+instructions use discrete digits for the parts of the instructions. This will
+become clearer with some examples.</p><h2>Design of MM<a name="auto1"></a></h2><p>Our machine will have exactly 1000 words of memory, each with a address of
+000 to 999. So a memory address requires exactly 3 decimal digits.
+Each word of memory holds a 6 digit decimal number and may be used for
+either data or program.</p><p>In addition our machine will have 10 general registers that also hold a
+6 digit number. The registers generally hold temporary values being computed.
+Also there are 2 special registers. The &quot;pReg&quot; is the program counter.
+It contains the memory address of the next instruction to be executed.
+The &quot;iReg&quot; contains the instruction currently being executed.</p><p>Our simulator will let us load a program into memory and then
+run (execute) the program step by step. First the word of memory addressed
+by the pReg is copied (loaded) to the iReg. Next the instruction is
+carried out (executed). This process repeats until a &quot;Halt&quot; instruction is
+executed which will cause the simulator to exit.
+While the program is running the contents of the pReg, iReg and 10
+general registers are updated and displayed.</p><h2>Machine Language for MM<a name="auto2"></a></h2><p>The following describes the instructions for MM. Each instruction will
+use 1 word of memory. Of the 6 digits in the word, 2 are reserved for
+the operation code (what the instruction will do), 1 digit will specify
+a general register, and the remaining 3 will specify either a memory
+address 000 to 999, an actual number or, depending on the instruction,
+a second general register.</p><p>Two digits for the operation code allows us to have 100 different
+instructions. We'll only need a dozen or so. These will let us move
+numbers to and from memory and registers, do arithmetic (add, subtract,
+multiply, and divide) on numbers in registers, and alter the flow of the
+program.</p><pre class="shell">
+--------------- Instruction Set for MM --------------
+000000       Halt
+01rmmm       Load register r with contents of address mmm.
+02rmmm       Store the contents of register r at address mmm.
+03rnnn       Load register r with the number nnn.
+04r00s       Load register r with the memory word addressed by register s.
+05r00s       Add contents of register s to register r
+06r00s       Sub contents of register s from register r
+07r00s       Mul contents of register r by register s
+08r00s       Div contents of register r by register s
+100mmm       Jump to location mmm
+11rmmm       Jump to location mmm if register r is zero
+</pre><p>In the above diagram the letters &quot;r&quot; and &quot;s&quot; represent general registers,
+&quot;mmm&quot; represents arbitrary 3 digit addresses and &quot;nnn&quot; an arbitrary
+3 digit number.</p><p>The first instruction with an opcode of 00 means the program is to
+halt. It doesn't matter what is in the remaining 4 digits but they
+are usually zero also. Executing a halt in the simulator causes it to
+exit but leaves the display on the screen so you can read the result
+of your computation in one of the general registers.</p><p>The next four instructions copy numbers between memory and the 10
+general registers. The third digit specifies the register and the
+last 3 digits the source in memory. So 016234 means load register 6
+with the number at memory address 234. The memory word itself is not changed.
+023234 copies the number in register 3 to memory address 234. This
+also leaves the register 3 unchanged. Opcode 03 is a little different and
+has the name &quot;load number&quot;. 035123 puts the number 123 into register
+5. Opcode 04 uses another register as an index to memory. If register 2
+contains the number 546 then the instruction 043002 loads whatever is
+in memory location 546 into register 3. This instruction will allow
+us to operate on a list (or array) of numbers.</p><p>The next four instructions operate just between the special registers.
+Instead of the low 3 digits specifying a memory location, they specify
+a second register. So 057008 adds the number in register 8 to register 7.
+Register 7 gets the sum and register 8 is unchanged. The same pattern is
+used for subract (06), multiply (07), and divide (08).</p><p>Finally, the last two instructions make it possible for our programs to
+do repetitive and conditional logic. The instruction 100452 puts
+the number 452 into the program counter (pReg). So whatever instruction
+is at 452 will be the next one fetched and executed. The instruction
+113764 will set the number 764 into the pReg if and only if register
+3 contains the number zero. These instructions are called jumps. The
+first is an unconditional &quot;jump&quot; and the second is called &quot;jump if zero&quot;.</p><h2>Our First Program<a name="auto3"></a></h2><p>In this section we will write a little program that simply adds two
+numbers together.</p><p>To prepare data for the simulator we need to prepare a file that
+contains the address and its content for each memory location that
+we will use. Once the program is loaded the simulator sets the pReg
+to 100 and execution begins. There is nothing magic about 100. But generally
+programs do not start at location zero.</p><p>During each execution cycle an instruction is fetched, the pReg is
+advanced and the instruction is executed. If the instruction is a
+jump instruction the pReg may be changed. Otherwise it contains the
+address of the next word in memory. This cycle repeats until a Halt
+instruction is executed and the simulator stops.</p><p>Our program file may also contain any arbitary comments after the
+address and its data. The simulator will only look at the first 2
+fields of each line. Here is the program to add the number 12 and 13.</p><pre class="shell">
+100   031012   Load register one with the number 12
+101   032013   Load register two with the number 13
+102   051002   Add register two to register one.
+103   000000   Halt. The answer is in register one.
+</pre><p>Put the above 4 lines into a file called &quot;prog1.mml&quot; and run the
+simulator program with &quot;python simulator.py prog1.mml&quot;. You will be prompted
+to hit the return key before each instruction fetch and before each
+instruction execution. When the program stops the screen should show</p><pre class="shell">
+The Mythical Machine
+
+P reg  000104       I reg 000000
+
+reg 0  000000       reg 5 000000
+reg 1  000025       reg 6 000000
+reg 2  000013       reg 7 000000
+reg 3  000000       reg 8 000000
+reg 4  000000       reg 9 000000
+</pre><p>showing that the last thing that happened was that
+the halt instruction was retrieved from address 103 and the
+registers 1 and 2 modified as per instructions. Notice that the
+pReg was advanced to 104. It gets advanced after each instruction.</p><h2>The Python Simulator for MM<a name="auto4"></a></h2><p>Let's spend a little time with the code in <a href="simulator.py">simulator.py.</a>
+First of all this program
+updates the screen in place. To do that it uses some &quot;escape sequences&quot;
+to position the cursor on the screen and to erase the screen. These
+escape sequences go back quite a ways and early computer terminals
+connected to mainframe computers would respond just as your Linux or
+Windows CRT screen does. Incidentally for this to work in Windows you
+need to have the program ANSI.SYS running and be running Python from
+the DOS window. For Windows 95 or 98 this
+can be done with a command in CONFIG.SYS in the root directory. The
+line should read &quot;Device=c:\windows\command\ansi.sys&quot;.</p><p>Escape sequences always begin with the &quot;escape&quot; character, which in
+Python is represented &quot;\33&quot;. The string &quot;\33[1;1H&quot; moves the cursor
+to the top left corner of the screen. The string &quot;\33[5;6H&quot; moves the
+cursor to row 5, column 6. The other escape sequence we use is
+&quot;\33[0J&quot; which erases the screen from the cursor location. You can
+also use the &quot;curses&quot; module to do this kind of thing, but our requirements
+are so simple that it makes sense to do it directly. Anyway, this
+gives a hint on how the curses module itself does its magic.</p><p>For the most part the simulator program is straight forward.
+Function &quot;main&quot; calls &quot;loadProgram&quot; with the filename as passed on the
+command line. It then erases the entire screen and prints &quot;panel&quot;, a
+&quot;multiline string. With the program
+loaded the program counter &quot;pReg&quot;
+is set to 100 and the panel is updated. Then the function &quot;cycle&quot; is
+called for each instruction. &quot;Cycle&quot; pauses before each retrieve and
+execution of an instruction. If you hit an &quot;a&quot; (for &quot;all&quot;) before
+the return the simulator will continue without pausing to the halt
+instruction. Function &quot;cycle&quot; extracts the opcode, register and address
+fields from the instruction and then in a if/elif block takes
+the appropriate action for the opcode. The screen is updated with the
+updatePanel function. UpdatePanel uses a convenient &quot;loc&quot; dictionary
+which stores the screen coordinates of each register in a tuple
+accessed by the register number.</p><h2>A more complex program<a name="auto5"></a></h2><p>Let's now look at a program that computes the sum of
+several numbers. We'll
+put the numbers (the data) in memory starting at location
+200. We'll put the program instructions at location 100. The program
+will add numbers to the running sum until it encounters the number zero which
+is a sign to stop.</p><p>In this program we need to use the &quot;load indirect&quot; (04) instruction
+and use register 1 to point to the data as we add them to the
+sum in register 0. Here is the program with comments</p><pre class="shell">
+100 030000   reg 0 holds the sum, set to zero
+101 031200   put address (200) of 1st number in reg 1
+102 032001   reg 2 holds the number one.
+103 043001   next number (via reg 1) to reg 3
+104 113108   if zero we're done so jump to halt inst
+105 050003   otherwise add reg 3 to the sum in reg 0
+106 051002   add one (in reg 2) to reg 1 so it points to next number
+107 100103   jump back to 103 to get the next number
+108 000000   all done so halt. the sum is in reg 0
+
+200 000123   the numbers to add
+201 000234
+202 000345
+203 000000   the end of the list
+</pre><h2>What's missing?<a name="auto6"></a></h2><p>MM is really too simple to be of much use although we will use it to
+calculate factorials both in assember and a little high level language
+that we'll design for it. Several additional features would be found in
+any real comupter. Let's look at a few of these.</p><p>We can only store integers up to 999999 in the memory or registers.
+Real computers use floating point numbers, character data, bitmaps
+and so on. But its all (binary) numbers.
+Each computer stores floating point numbers in its own way and has
+special machine instructions for doing arithmetic with such
+numbers, although early computers emualated this in software.
+You may already be familiar with how numbers represent characters in ascii
+character set and there are others as well.
+Character strings and lists,
+or arrays, are stored using sequential addresses in the memory very
+much like we did in the second program.</p><p>With the Jump instructions we can do loops and &quot;if&quot; kinds of logic.
+Along with the conditional &quot;jump if zero&quot; would be other kinds of tests
+as well such as &quot;jump if negative&quot;.
+Also, to call a subroutine (function) requires both a jump and a way
+to return to the instruction after the &quot;jump to subroutine&quot;. This was
+often awkward until machine code used stacks to keep track of
+return addresses. Stacks are simply sections of memory where a general
+register addresses the top element. Stacks make recursive functions
+possible even in machine language.</p><p>Finally, every computer needs some way to communicate with the outside
+world. We gave MM a panel showing its registers but nothing else. Real
+computers, even the earliest ones had keyboards, screens or paper prinouts,
+and so on. Typically the electronics are designed so that special addresses
+reference registers in these devices instead of main memory.</p><p>We'll continue to use MM in the next two sections on 
+<a href="assembler.html">assembler language</a>
+and the small <a href="compiler.html">compiler.</a></p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2003-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

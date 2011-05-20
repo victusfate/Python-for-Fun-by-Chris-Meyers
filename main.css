@@ -1,0 +1,113 @@
+body {
+    margin: 0px;
+    padding: 0px;
+    background-image: url(images/pslytherin.png);
+    background-repeat: no-repeat;
+    background-position: top right;
+    background-color: #ffffff;
+    color: #000000;
+}
+#Header {
+    color: #007700;
+    margin: 0px 0px 0px 116px;
+    padding: 0px;
+}
+#Footer {
+    margin: 0px 150px 0px 0px;
+    font-size: 14px;
+    text-align: right;
+}
+.Content {
+    margin: 5px 116px 5px;
+    padding: 20px;
+    color: #000000;
+    background-color: #fdfdda;
+    border: 1px solid #000000;
+}
+.leftcolumn {
+    margin: 0px 20px 0px 20px;
+    float: left;
+    width: 50%;
+    text-align: justify;
+}
+.rightcolumn {
+    margin: 0px 20px 0px 20px;
+    float: right;
+    width: 50%;
+}
+p {
+    font-size: 14px;
+    line-height: 20px;
+    font-family: verdana, arial, helvetica, sans-serif;
+    margin: 0px 0px 12px 0px;	
+}
+#Content>p {
+    margin: 0px;
+}
+#Content>p+p {
+    text-indent: 30px;
+}
+
+a {
+    color: #d97405;
+    font-size: 14px;
+    text-decoration: none;
+    font-weight: 600;
+    font-family: verdana, arial, helvetica, sans-serif;
+}
+a:link {
+    color: #d97405;
+}
+a:visited {
+    color: #d97405;
+}
+a:hover {
+    background-color: white;
+}
+h1 {
+    color: #333333;
+    font: 36px/36px verdana, arial, helvetica, sans-serif;
+    font-weight: 900;
+}
+h2 {
+    color:#333333;
+    font: 20px verdana, arial, helvetica, sans-serif;
+    font-weight: 700;
+    margin:18px 0px 3px 0px;
+}
+h3 {
+    color: #666666;
+    font-size: 15px;
+    font-weight: 800;
+    margin: 6px 0px 3px 0px;
+}
+
+img {
+    border-width: 0px;
+}
+img.thumb {
+    margin: 10px 1px;
+}
+
+#Copyright {
+    clear: both;
+    padding: 50px 0px 100px 0px;
+    text-align: center;
+    font-weight: 800;
+    color: #999999;
+}
+#copyrightText {
+    position: relative;
+    left: -17px;
+}
+
+.first {
+    margin-top: 0px;
+    padding-top: 0px;
+}
+td {
+    width: 50%;
+    padding: 0px 20px 0px 20px;
+    text-align: justify;
+    vertical-align: top;
+}

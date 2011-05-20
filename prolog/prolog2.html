@@ -1,0 +1,177 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Prolog in Python. Version 2</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Prolog in Python. Version 2</h1><div class="toc"><ol><li><a href="#auto0">Building lists with compound terms</a></li><li><a href="#auto1">A better parser for terms</a></li><li><a href="#auto2">An improved unify function.</a></li><li><a href="#auto3">Two examples with lists</a></li></ol></div><div class="content"><span></span><p>This second version of our Prolog interpretor implements only a single new feature.
+But that feature will enable the use of trees and lists and is necessary for more
+interesting programs.</p><p>The feature is simply this. In addition to constants and variables, arguments in a term
+may be other terms. This complicates parsing and unification, because both will now
+need to be recursive, but leaves other parts of the program pretty much intact.</p><p>In this chapter, we'll look at compound terms (terms that contain other terms) only in
+regard to building Prolog lists.</p><h2>Building lists with compound terms<a name="auto0"></a></h2><p>Prolog does not support lists directly but builds them as a set of nested terms
+The predicate &quot;.&quot; is used to bind the elements of the list together. The term &quot;.(a,b)&quot;
+may be represented as a mini tree</p><pre class="shell">
+   .__ b
+   |
+   a
+</pre><p>and .(a, .(b, .(c, .()))) becomes</p><pre class="shell">
+   .__.__.__nil
+   |  |  |
+   a  b  c
+</pre><p>The first tree may also be represented in Prolog with the syntax &quot;[a|b]&quot; and the second,
+which is a proper list may be represented by the familiar &quot;[a,b,c]&quot;. The term &quot;.()&quot;
+is the empty list represented by &quot;[]&quot;. With the square bracket syntax, Prolog lists look
+just like Python lists. Prolog lists may contain constants, variables, and of course
+other lists.</p><p>Compound terms, and therefore lists, unify in the same way that we are already familiar.
+That is, the predicates must match, they must have the same number of arguments, and
+each argument must unify with the corresponding one in the other term. But since arguments
+themselves may be terms the process must be done recursively. Here are some examples.
+assume all variables in the second term are unbound.</p><pre class="shell">
+Unification ...
+[a,b,c]  with X        binds X to the [a,b,c]
+[a,b,c]  with [X,b,c]  binds X to a
+[a,b,c]  with [X|Y]    binds X to a, Y to [b,c]
+</pre><p>It is important to remember that internally in the program lists are nested terms with
+the &quot;.&quot; predicate, but that they are translated to and from the square bracket notation
+for input and display. The pipe character &quot;|&quot; effectively splits a list into its first
+element and the remaining elements.</p><h2>A better parser for terms<a name="auto1"></a></h2><p><a href="prolog2.py">Click here to access the Python code for prolog2.py.</a> You may find
+it convenient to save it into a file and access it with a text editor.</p><p>In the first version of our Prolog interpreter we used the split function in the string
+module to break a term like &quot;mother(mary,bill)&quot; first into a predicate &quot;mother&quot; and
+arguments &quot;mary,bill&quot; (by splitting on the &quot;(&quot; character), and later splitting the arguments
+apart (on the commas). Terms in a rule are also separated by commas but we got around that
+by using re.sub to turn just those commas into semicolons, and then splitting the terms
+apart.</p><p>Alas, this approach just won't work anymore. If we have nested list like &quot;[a,[b,c,d],e]&quot;,
+we want to extract three elements, &quot;a&quot;, &quot;[b,c,d]&quot;, and &quot;e&quot;. Not &quot;a&quot;,&quot;[b&quot;,&quot;c&quot;,&quot;d]&quot;,&quot;e&quot;.</p><p>To accomodate this prolog2.py contains its own split function that splits only when
+a separater is at a zero nesting level. As a string is scanned, the nesting level is
+increased by one whenever a &quot;(&quot;, or &quot;[&quot; is encountered, and decreased by one whenever
+a &quot;)&quot; or &quot;]&quot; is encountered.  In addition an optional &quot;All&quot; parameter, when 0,
+lets us split off just the first predicate in the term.</p><p>As in Prolog1.py terms are objects and compiled from text. There is also a mode where a
+predicate and argument list may be compiled into a term. (line 35). This is used by the
+eval function. With text however, either a list (line 39) or a standard term may be
+compiled. But now that arguments are also terms, Term initialization is recursive.
+The Python map function
+builds all the argument terms with a single call. (lines 42 and 52). Finally a simple
+constant or variable is a term with no arguments, like it was in prolog1.py (line 55).</p><p>The Term __repr__ method will determine how terms are displayed when printed or passed
+to the builtin str function. Since lists are really nested terms using the &quot;.&quot; predicate,
+they are now translated back to the square bracket notation. (line 59). Other terms
+are output the same way they were in prolog1.py.</p><p>Let's play with the Term class a bit</p><pre class="shell">
+&gt;&gt;&gt; from prolog2 import *
+&gt;&gt;&gt; a = Term(&quot;bill&quot;)
+&gt;&gt;&gt; print a
+bill
+&gt;&gt;&gt; a.pred
+'bill'
+&gt;&gt;&gt; a.args
+[]
+&gt;&gt;&gt;
+</pre><p>Here we have compiled the simplest possible term, a constant. It prints its name and in
+order to see the insides (pred and args) we need to look at the attributes directly.</p><pre class="shell">
+&gt;&gt;&gt; b = Term(&quot;tasty(food(meat))&quot;)
+&gt;&gt;&gt; b
+tasty(food(meat))
+&gt;&gt;&gt; b.args
+[food(meat)]
+&gt;&gt;&gt;
+</pre><p>This is a compound term showing the argument of &quot;tasty&quot; as a nested term.</p><p>Next we'll construct a list with the &quot;.&quot; operator directly.</p><pre class="shell">
+&gt;&gt;&gt; c = Term(&quot;.(a,.(b,.()))&quot;)
+&gt;&gt;&gt; c
+[a,b]
+</pre><p>But of course, it is more natural to create lists from the list syntax itself.</p><pre class="shell">
+&gt;&gt;&gt; d = Term(&quot;[x,y,[a,b,c],z]&quot;)
+&gt;&gt;&gt; d
+[x,y,[a,b,c],z]
+</pre><p>We can also use the &quot;|&quot; operator to prepend 'x' onto the list &quot;[y,z]&quot;.
+<pre class="shell">
+&gt;&gt;&gt; e = Term(&quot;[x|[y,z]]&quot;)
+&gt;&gt;&gt; e
+[x,y,z]
+&gt;&gt;&gt;
+</pre><h2>An improved unify function.<a name="auto2"></a></h2>
+
+The Rule and Goal classes are the same as in prolog1.py but unification is more complex
+since looking up variables needs to be done recursively. The function <code>unify</code> returns
+one if the source term can be unified to the destination term. Variables in each are
+looked up in their own enviroments and destination variables may be bound to constants
+in the source.</p><p>The new function <code>eval</code> is used to &quot;look up&quot; variables. (line 206). <code>eval</code> is
+recursive so that if a term is evaluated, each argument is evaluated internally. <code>eval</code>
+then returns a term with all variable references converted to constants or the value
+<code>None</code> if this is impossible.</p><p>The function <code>unify</code> returns true (1) if the source (or parts of it) are still variables.
+Otherwise it returns true if destination can be matched to it piece by piece in basically
+the same manner as in prolog1.py.</p><p>Notice that all returns from the function <code>unify</code> are channeled through the function
+<code>sts</code>. This is for tracing purposes and results in nested unifications being indented
+in a trace. Let's play with this.</p><p>First we'll set up an empty destination enviroment &quot;e&quot; and unify a constant list with
+a simliar list with variables.</p><pre class="shell">
+&gt;&gt;&gt; import prolog2
+&gt;&gt;&gt; e = {}
+&gt;&gt;&gt; prolog2.unify(Term(&quot;[a,b,c]&quot;),{},Term(&quot;[A,B,C]&quot;),e)
+1
+&gt;&gt;&gt; e
+{'B': b, 'C': c, 'A': a}
+&gt;&gt;&gt;
+</pre><p>Now we'll unify again (just matching values) since e is already set. But this time we'll
+turn on the trace in the module prolog2.</p><pre class="shell">
+&gt;&gt;&gt; prolog2.trace = 1
+&gt;&gt;&gt; prolog2.unify(Term(&quot;[a,b,c]&quot;),{},Term(&quot;[A,B,C]&quot;),e)
+&gt;&gt;&gt; prolog2.unify(Term(&quot;[a,b,c]&quot;),{},Term(&quot;[A,B,C]&quot;),e)
+ Unify [a,b,c] {} to [A,B,C] {'A': a, 'C': c, 'B': b}
+   Unify a {} to A {'A': a, 'C': c, 'B': b}
+     Unify a {} to a {'A': a, 'C': c, 'B': b}
+     Yes All args unify
+   Yes Unify to Dest value
+   Unify [b,c] {} to [B,C] {'A': a, 'C': c, 'B': b}
+     Unify b {} to B {'A': a, 'C': c, 'B': b}
+       Unify b {} to b {'A': a, 'C': c, 'B': b}
+       Yes All args unify
+     Yes Unify to Dest value
+     Unify [c] {} to [C] {'A': a, 'C': c, 'B': b}
+       Unify c {} to C {'A': a, 'C': c, 'B': b}
+         Unify c {} to c {'A': a, 'C': c, 'B': b}
+         Yes All args unify
+       Yes Unify to Dest value
+       Unify [] {} to [] {'A': a, 'C': c, 'B': b}
+       Yes All args unify
+     Yes All args unify
+   Yes All args unify
+ Yes All args unify
+1
+&gt;&gt;&gt;
+</pre><h2>Two examples with lists<a name="auto3"></a></h2><p>Finally we'll examine two classic operations with lists, element membership and
+the appending of lists.</p><pre class="shell">
+? member(X,[X|T])
+? member(X,[H|T]) :- member(X,T)
+</pre><p>Two rules determine membership. If X is the head of a list or if X is a member
+of the tail of the list. In the first case it doesn't matter what the tail &quot;T&quot; of
+the list is. In the second case it doesn't matter what the head &quot;H&quot; of the list is.</p><p>With these two definitions we can test for membership</p><pre class="shell">
+? member(a,[a,b,c])?
+Yes
+? member(b,[a,b,c])?
+Yes
+</pre><p>And finally Prolog can compute &quot;backwards&quot; so to speak to find all the members of
+the list. In this mode we have something similar to the Python &quot;for&quot; statment.</p><pre class="shell">
+? member(X,[a,b,c])?
+{'X': a}
+{'X': b}
+{'X': c}
+?
+</pre><p>The rules for append are a bit trickier. It's always wise to remember that the rules
+constrain the solution but don't specify the computation. Here are the two rules
+for append. The first two arguments are the input lists and the third argument is
+the result.</p><pre class="shell">
+? append([],L,L)
+? append([X|A],B,[X|C]) :- append(A,B,C)
+</pre><p>The first rule says that any list &quot;L&quot; appended to the empty list results in the same
+list &quot;L&quot;. The second rules says that if C is A appended to B, then it's also true
+if X is prepended to both A and C.</p><p>Let's run some tests computing in both directions.</p><pre class="shell">
+? append([a,b],[c,d],X)?
+{'X': [a,b,c,d]}
+
+? append([a,b],Y,[a,b,c,d])?
+{'Y': [c,d]}
+
+? append(X,Y,[a,b,c])?
+{'X': [], 'Y': [a,b,c]}
+{'X': [a], 'Y': [b,c]}
+{'X': [a,b], 'Y': [c]}
+{'X': [a,b,c], 'Y': []}
+?
+</pre><p>In the last example, Prolog gives us all possible ways the list &quot;[a,b,c]&quot; can be
+constructed. I think this is kind of wild.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

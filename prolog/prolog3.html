@@ -1,0 +1,83 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Prolog in Python. Version 3</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Prolog in Python. Version 3</h1><div class="toc"><ol><li><a href="#auto0">Arithmetic operations</a></li><li><a href="#auto1">Code changes for aritmetic</a></li><li><a href="#auto2">Cut and Fail</a></li><li><a href="#auto3">Searching with a Queue, instead of a Stack</a></li><li><a href="#auto4">Where from here?</a></li></ol></div><div class="content"><span></span><h2>Arithmetic operations<a name="auto0"></a></h2><p>The final version of our Prolog interpreter implements a few of the arithmetic
+operators as well as the &quot;cut&quot; and &quot;fail&quot; terms. Up to now we've been unable
+to do any numerical computation. Actually, this is not Prolog's strong
+point anyway. But some numerical computation is always necessary. For example
+here is a pair of rules to find the length of a list.</p><pre class="shell">
+length([],0)
+length([H|T],N) :- length(T,Nt), N is Nt+1
+</pre><p>This says that the length of an empty list is zero and the length of any other
+list is one greater than the length of its tail (the list less its first term).</p><p>The interesting term is &quot;N is Nt+1&quot;. For one thing it's in infix. There is
+an equivalent form &quot;is(N,+(Nt,1))&quot; which looks more Prolog-like (and Lisp-like) but is harder
+to read. It turns out that it requires only a few extra lines of Python to
+implement the infix form, although the operator &quot;is&quot; is renamed (internally
+only) to &quot;*is*&quot; since &quot;is&quot; should remain a valid name.</p><p>It is necessary to discuss these operations in some detail. Terms in Prolog
+are used as goals within rules and either succeed or fail. During unification
+variables are sometimes set as goals succeed. With &quot;N is Nt+1&quot;, or better,
+&quot;is(N,+(Nt,1))&quot;, first the inner term must succeed before the outer term
+is tried.</p><p>The '+' operator succeeds only if both arguments evaluate to numbers. The term
+then evaluates to the sum of the numbers. Operators like '-', '*'. '/' work
+in exactly the same way. The boolean operators &quot;&lt;&quot;, &quot;==&quot;, etc. also expect
+numeric arguments but then simply succeed or fail. They are only used as the
+top term in a goal.</p><p>The 'is' operator is a combination of both the Python &quot;=&quot; and the '=='
+operators. A variable on the left that is unset is set to the computation on
+the right and the term succeeds. If the left side is already set then the
+term succeeds only if the two sides are equal. Although it's not obvious at
+this point, this lets us do both of the following.</p><pre class="shell">
+? length([a,b,c],X)?
+{'X': 3}
+? length([a,b,c],3)?
+Yes
+?
+</pre><h2>Code changes for aritmetic<a name="auto1"></a></h2><p><a href="prolog3.py">Click here to access the Python code for prolog3.py.</a> You may find
+it convenient to save it into a file and access it with a text editor.</p><p>In prolog1.py we used the split function in the string module to split
+terms in a rule and arguments in a term. In prolog2.py we had to write our
+own &quot;split&quot; function in order to correctly handle nested terms. We still
+were only separating on commas or the left parenthesis (to pull a predicate
+from its arguments).</p><p>Some of our infix operators are now more than a single character, such as
+&quot;&lt;=&quot; or &quot;*is*&quot;. A small adaptation using the variable &quot;lsep&quot; (line 18)
+which stands for &quot;length of separator&quot; handles this.</p><p>Some infix operators are only allowed at the top level of a term. A new function
+&quot;splitInfix&quot; (line 35) and called from &quot;Term&quot; init (line 42) looks for
+infix operators (the list &quot;infixOps&quot; is far from complete) and essentially
+makes the string &quot;a&lt;=b&quot; equivalent to &quot;&lt;=(a,b)&quot;.</p><p>Finally we come to the execution of our new operators. Up to now the search
+function took a term from a rule and then searched for matches in the database
+of other rules. These new operators do not initiate a search. Instead they
+are simply evaluated (with possible side effects) and if they succeed the
+rule is continued with the next term. The code for this (lines 201 to 216)
+check for *is*&quot;, &quot;cut&quot;, &quot;fail&quot;, and generic functions like &quot;&lt;&quot; all of which
+are found only at the top level of a term.</p><p>Other new operators like &quot;+&quot; exist in nested terms and are processed by the
+eval function (line 244). Each of these operators is handled by its own
+function which builds a new term from its arguments.</p><h2>Cut and Fail<a name="auto2"></a></h2><p>Consider the following piece of Prolog.</p><pre class="shell">
+childOf(X,Y) :- parent(Y,X)
+parent(chris,jon)
+parent(maryann,jon)
+childOf(A,B)?
+{'B': chris, 'A': jon}
+{'B': maryann, 'A': jon}
+?
+</pre><p>Jon is the child of both parents so Prolog returns two answers. But if we
+want to only find a first answer we can do the following instead.</p><pre class="shell">
+childOf(X,Y) :- parent(Y,X),cut
+parent(chris,jon)
+parent(maryann,jon)
+childOf(A,B)?
+{'B': chris, 'A': jon}
+?
+</pre><p>Cut stops alternatives in the search and then succeeds. In prolog3.py this
+is accomplished by simply truncating the queue of alternatives (line 220).</p><p>Fail is almost the exact opposite. It stops the current rule, leaving any
+alternatives alone. &quot;Cut&quot; and &quot;fail&quot; are sometimes used together to declare
+complete failure of the search.</p><h2>Searching with a Queue, instead of a Stack<a name="auto3"></a></h2><p>You may or may not have noticed in prolog2.search function that the stack of goals
+became a queue. Other than the change of the variable name, the only difference is
+the &quot;queue.insert(0,c)&quot; instead of &quot;stack.append(c)&quot; (line 224 in prolog3.py).</p><p>The effect of this change is subtle, but interesting. It changes the tree search from
+depth-first to breadth-first. That, in turn, means that multiple goals are processed in
+parallel rather than one goal being completed before another is started. This was also
+discussed in &quot;Queues, Trees and Water Buckets&quot;. It opens the door to parallel processing
+but also creates problems, especially with the &quot;cut&quot; operator. Not only does the 
+queue need to be emptied but processes running in parallel need to stop so as not to
+add any new goals to the queue afterwards. It's basically a synchronization problem.
+I have read, however, that most modern prologs do use a breadth-first search.</p><h2>Where from here?<a name="auto4"></a></h2><p>This is as far as I intend taking the Prolog project, but it can certainly be
+extended further. I'm quite surprised so much could be done in about 260 lines
+of Python, including whitespace.</p><p>If you do extend the program I would enjoy hearing from you.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

@@ -1,0 +1,9 @@
+bill is a man
+is bill a person
+bill owns a porsche
+does any person own a car
+a man is a person
+does any person own a car
+a porsche is a car
+debug
+does any person own a car

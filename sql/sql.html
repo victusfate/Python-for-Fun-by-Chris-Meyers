@@ -1,0 +1,453 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: SQL Introduction for Python Programmers</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">SQL Introduction for Python Programmers</h1><div class="toc"><ol><li><a href="#auto0">Servers and Clients</a></li><li><a href="#auto1">Nature of the data</a></li><li><a href="#auto2">Using psql with postmaster</a></li><li><a href="#auto3">Operations on Tables</a></li><li><a href="#auto4">Inserting rows into a table</a></li><li><a href="#auto5">Deleting rows from a table</a></li><li><a href="#auto6">Updating rows in a table</a></li><li><a href="#auto7">Selecting rows from a table</a></li><li><a href="#auto8">Beyond the basics</a></li><li><a href="#auto9">Working with multiple tables</a></li><li><a href="#auto10">The Python connection</a></li><li><a href="#auto11">A little report program</a></li><li><a href="#auto12">Using tables with indexes</a></li></ol></div><div class="content"><span></span><p>This tutorial on SQL is meant to demonstrate the small amount of know-how
+you need to write effective database programs. By looking at any SQL reference
+book, it is obvious that there is vastly more to the subject than what is
+presented here. But in several years of programming with SQL and Python I've
+found that about 98% of what I do is in the following pages.</p><p>We will be using PostgreSQL and Python together. At work I use Sybase for
+the database server but for most readers open source PostgreSQL is much more
+affordable and still very powerful. Another open source option that you can
+explore is MySQL.</p><h2>Servers and Clients<a name="auto0"></a></h2><p>Relational database systems are client/server systems. In PostgreSQL the
+server is called the postmaster and does all the actual interaction with the
+data itself. Clients are programs that make requests to the server to either
+read or modify the database. This approach allows several clients to
+simultaneously access the data with the server doing all the necessary
+synchronization.</p><p>There are two types of client we'll look at. One is the program psql that
+comes with the PostgreSQL system and lets us examine and modify data easily
+interactively, similar to the Python interactive mode. The other type of
+client is a Python program you write that imports the <code>pg</code> module to 
+do the same kind of interactions that psql does but retrieve the result in
+Python data structures.</p><h2>Nature of the data<a name="auto1"></a></h2><p>In thinking about databases it is useful to consider some analogies,
+although they should not be taken too literally.</p><p>The server may access many databases but a client will operate on only 
+one at a time. Think of a database as a directory in your file system. Tables
+in the database are something like files in the directory. Tables consist of
+rows and columns and you may think of them as spreadsheets. Each column has a
+name and can hold a particular type of data such as an integer, a floating
+point number, or a string.  Each relational database system has its own set of
+datatypes. PostgreSQL has about 40. But the datatypes you'll use over and over
+again are numbers (ints and floats), strings, and dates.</p><p>It is important to realize at the start what columns cannot hold.  You
+can't put a Python list or dictionary into a column, as lovely as that would
+be. Later we will see how we can join tables together to achieve this kind
+of versatility with our data.</p><p>Tables can also have indexes which maintain the data in sorted order and
+serve 3 main purposes.
+One is to make
+accessing data much faster. If the client requests a certain row from a table by 
+a data value in one or more or its columns,
+the server will not have to read (perhaps) the entire table to find the row in
+question if the table is indexed by that set of columns. Instead the row is found
+by bouncing around a much smaller (and sorted) index. Secondly, indexes let
+us processes a set of rows in the sorted order. Finally, indexes are 
+necessary if we want to guarentee that each row has a unique value in a column
+(or set of columns). We'll go into indexes in more detail later.</p><h2>Using psql with postmaster<a name="auto2"></a></h2><p>First make sure the server (postmaster) is running. If you are on a multiuser system a
+system administrator may be responsible for this and has also created a
+database for your use, or perhaps to share with others.</p><p>I'm using Linux on a standalone system so I will start the postmaster
+(from the postgres login) in local mode (just my machine) and create a test
+database. We'll use a dedicated window to run postmaster.
+The &quot;$&quot; is the shell prompt</p><pre class="shell">
+$ postmaster -i localhost
+</pre><p>Messages from postmaster will appear the in this window.</p><p>Next, logged in another window as user <code>postgres</code>, I'll create a
+fresh database called <code>school</code> to play with. Then I'll activate the
+psql client attaching it to my database <code>school</code>. We're now ready to 
+add and manipulate tables in <code>school</code>. The program <code>psql</code>
+issues the prompt <code>school=#</code>, showing which database it has open.
+</p><pre class="shell">
+$ createdb school
+$ psql school
+school=#
+</pre><h2>Operations on Tables<a name="auto3"></a></h2><p>Tables are created by giving them a name and a set of columns. Each column
+in turn needs a name and a datatype. Here is a simple example.</p><pre class="shell">
+school=# create table course (number int, name varchar(24), credits int);
+</pre><p>Here we have created a simple table with information about courses.  We are
+using a column for the course number, another for its name, and one for the number
+of credits. The
+name is defined as <code>varchar</code> (variable length character string)
+which is like a Python string except that this one has a maximum length of 24.
+The course number and credits are stored as integers.</p><p>The opposite operation of <code>create table</code> is
+<code>drop table</code>. You may think of <code>drop</code> as <code>delete</code> or,
+if you are unix fan, <code>rm</code>.</p><pre class="shell">
+school=# drop table course;
+</pre><p>Once a table is created, clients do mostly four things with them.  Insert a
+new row, delete a row, update column values in a new row and finally select
+rows (read).</p><h2>Inserting rows into a table<a name="auto4"></a></h2><p>Inserting rows can be done in 2 ways. The simplest is to list the column
+values in the same order as the columns were defined when created. For example
+</p><pre class="shell">
+school=# insert into course values (3, 'Computer Programming', 1);
+</pre><p>Another way is to first list the column names followed by values.
+</p><pre class="shell">
+school=# insert into student (id,name) values (411, 'Bayartsogt, Gombo');
+</pre><p>This method is handy if some columns have default values or can take a null
+value (think Python None). These columns and their values may be omitted from
+the insert statment. You can check your reference book on how to expand the
+<code>create table</code> statement to specify defaults with columns.</p><h2>Deleting rows from a table<a name="auto5"></a></h2><p>Deleting rows from a table is as simple as identifying them. For example.</p><pre class="shell">
+school=# delete from course where number=120
+</pre><p>The clause <code>where number=120</code> specifies a single row, at least
+with what we have in the table so far. But if there were two rows in the table
+with this number, both would be deleted. In fact, the <code>where</code> clause 
+may be omitted in which case all rows in the table are deleted. So
+<code>delete from course</code> empties the course table.</p><p>Actually, <code>where</code> clauses are a lot like boolean expressions in
+Python, i.e.  what you find after keywords like <code>if</code> and
+<code>while</code>. But there are some differences you'll want to remember. In
+SQL you use a single <code>=</code> to test for equality instead of
+<code>==</code>.  And where you would find variable names in Python SQL requires
+column names. But and's and or's are allowed and you're free to use parantheses 
+as you would expect. One thing to watch out for in postgreSQL is that you must use
+single quotes for strings. Double quotes are used for another purpose.</p><p>One common practice that is quite different is pattern matching with string
+data. Exact matching is simply <code>name='Algebra II'</code> but the phrase
+<code>name like 'Algebra%'</code> would match any string starting with
+<q>Algebra</q>.  The <code>%</code> character is the wildcard character for
+SQL's <code>like</code> operator. With Python these kind of matches generally
+require the <code>re</code> (regular expression) module.</p><p><code>Where</code> clauses are probably the most complex and powerful part
+of SQL. They are used with <code>update</code> and <code>select</code>
+statements just as they are with <code>delete</code>. We'll see several
+examples as we go along.</p><h2>Updating rows in a table<a name="auto6"></a></h2><p>Updating columns in a table is straighforward. A <code>where</code> clause
+identifies the row (or rows) to update. The <code>set</code> clause identifies
+the columns and their new values.</p><pre class="shell">
+school=# update student set name='George' where id=411;
+</pre><p>You can modify a single column, several columns or even all columns
+depending on your <code>where</code> clause (or lack of one). You may also
+update several columns in a single update statement. Just separate
+<code>name=value</code>(s) with commas.</p><h2>Selecting rows from a table<a name="auto7"></a></h2><p>The <code>select</code> statement is the most interesting and the one
+you will use most often, probably 90% of the time. Here is a simple example
+which select all columns (*) from all rows (no where clause) from the table
+course.</p><pre class="shell">
+school=# select * from course;
+ number |         name         | credits
+--------+----------------------+---------
+    101 | Algebra I            |       5
+    201 | Algebra II           |       5
+    150 | World History        |       2
+    301 | Calculus             |       5
+    314 | Computer Programming |       4
+    204 | Spanish II           |       3
+(6 rows)
+</pre><p>Adding a <code>where</code> clause lets us control how much we get back
+</p><pre class="shell">
+school=# select * from course where name like 'Algebra%';
+ number |    name    | credits
+--------+------------+---------
+    101 | Algebra I  |       5
+    201 | Algebra II |       5
+(2 rows)
+</pre><p>The <code>*</code> above indicates all columns. If only some are wanted you
+specify them by name.</p><pre class="shell">
+school=# select number,credits from course where credits &gt; 4;
+ number | credits
+--------+---------
+    101 |       5
+    201 |       5
+    301 |       5
+(3 rows)
+</pre><h2>Beyond the basics<a name="auto8"></a></h2><p>Now that you've seen the four basic operations on tables it's time to extract
+from multiple tables.
+Relational databases are so named because tables are related to each
+other by common values. To illustrate this we need to create a couple more
+tables; one for students and one for teachers. To make this easier we put the necessary
+sql into two files, <a href="teachers.sql">teachers.sql</a> and
+<a href="students.sql">students.sql</a>. Take a look at these. They're pretty
+bare-boned with each student and teacher having simply a name and an id number.
+Id numbers are necessary to distinguish duplicate names. In practice the id
+numbers for people are often social security numbers. Id numbers are also great
+for joining tables together as we'll see.</p><p>We can load these files with psql redirecting stdin to the files. The contents
+of the files simply replace what you would type.</p><pre class="shell">
+$ psql school &lt; teachers.sql
+$ psql school &lt; students.sql
+$ psql school   
+school=# select * from teacher;
+  id  |     name
+------+---------------
+ 1001 | Elkner, Jeff
+ 1002 | Meyers, Chris
+ 1003 | Downey, Allen
+(3 rows)
+   
+school=# select * from student;
+ id  |   name
+-----+-----------
+ 411 | Bayartsogt, Gombo
+ 412 | McMahon, John
+ 413 | Kern, Owen
+ 414 | Cohen, Jonah
+(4 rows)
+</pre><p>Let's talk about relationships between rows in different tables. They fall into 3
+catagories; one to one, one to many, and many to many.</p><p>An example of a one-to-one relationship might be a parking space assigned
+to a teacher. One parking space; one teacher. The easiest way to make this
+relationship in our database is to make the parking space number a column in
+the teacher table. If, perhaps, more information about parking spaces were
+required, we could have a separate table for parking spaces.  The parking space 
+number in both tables would tie the teacher to the extra information in the
+parking table.
+</p><p>An example of a one-to-many relationship might be teachers to courses.
+We'll assume each course is taught by a single teacher but that each teacher
+may teach several courses. In a Python program we might have a object class of
+teacher with an attribute of courses, a list containing the course numbers.
+But remember that we can't store lists in a database. What we do instead is
+have a column in the course table that contains a single teacher id. We'll see in a
+bit how this solves the problem.</p><p>Finally an example of a many-to-many relationship might be students and
+courses. Each course has many students and students take many courses.
+Representing this kind of relationship requires an extra table that ties students
+and courses together. We'll call this table &quot;enrolled&quot; and it will have a
+row for each combination of student and course.</p><pre class="shell">
+school=# create table enrolled (studentId int, courseId int);
+</pre><p>If we have 3 students each taking 4 courses, our table would have 12 rows
+(3*4).</p><h2>Working with multiple tables<a name="auto9"></a></h2><p>Let's drop the tables and reload them from these files;
+<a href="teachers.sql">teachers.sql</a>, <a href="courses.sql">courses.sql</a>,
+<a href="students.sql">students.sql</a> and
+<a href="enrolled.sql">enrolled.sql</a>.</p><pre class="shell">
+$ psql school &lt; teachers.sql
+$ psql school &lt; students.sql
+$ psql school &lt; courses.sql
+$ psql school &lt; enrolled.sql
+</pre><p>Now things get a little more interesting. We can use the relations between
+the tables to make more complex queries.</p><p>Let's list all courses taught by teacher 1001</p><pre class="shell">
+$ psql school
+school=# select name,teacherId from course where teacherId=1001;
+         name         | teacherid
+----------------------+-----------
+ World History        |      1001
+ Computer Programming |      1001
+(2 rows)
+</pre><p>But suppose we want to list the  teacher's name instead of their id.  To do
+this we need to <code>join</code> the course and teacher tables. Our first
+attempt will be</p><pre class="shell">
+school=# select course.name, teacher.name from course,teacher;
+</pre><p>Because both tables have a column called <code>name</code> the columns need
+to be qualified by their table names; thus, course.name and teacher.name.
+There is still a problem, however. If you try the above query you'll get 18
+rows; 3 teachers times 6 courses. That's what happens when tables are joined.
+To trim our answers to what we want we need to add a simple
+<code>where</code> clause.</p><pre class="shell">
+school=# select course.name, teacher.name from course,teacher
+school-#   where teacher.id=teacherId;
+         name         |     name
+----------------------+---------------
+ World History        | Elkner, Jeff
+ Computer Programming | Elkner, Jeff
+ Algebra II           | Meyers, Chris
+ Calculus             | Meyers, Chris
+ Algebra I            | Downey, Allen
+ Spanish II           | Downey, Allen
+</pre><p>There was no need to qualify the column name <code>teacherId</code> since
+it is unambiguous</p><p>We can also sort the output with an <code>order</code> clause.
+<code>Order</code> clauses always come after <code>where</code> clauses. For
+example</p><pre class="shell">
+school=# select course.name, teacher.name from course,teacher
+school-#   where teacher.id=teacherId
+school-#   order by course.name;
+         name         |     name
+----------------------+---------------
+ Algebra I            | Downey, Allen
+ Algebra II           | Meyers, Chris
+ Calculus             | Meyers, Chris
+ Computer Programming | Elkner, Jeff
+ Spanish II           | Downey, Allen
+ World History        | Elkner, Jeff
+(6 rows)
+</pre><p>Finally, we'll join 3 tables to show students enrolled in each class.  We'll 
+order first by course name and then by student name.</p><pre class="shell">
+school-#select  course.name,student.name from enrolled,student
+school-#  where course.number=enrolled.courseNumber
+school-#  and   student.id   =enrolled.studentId
+school-#  order by course.name, student.name;
+   
+         name         |   name
+----------------------+-----------
+ Algebra I            | McMahon, John
+ Algebra II           | Bayartsogt, Gombo
+ Calculus             | McMahon, John
+ Computer Programming | Bayartsogt, Gombo
+ Computer Programming | McMahon, John
+ Computer Programming | Kern, Owen
+ Computer Programming | Cohen, Jonah
+ Spanish II           | Kern, Owen
+ Spanish II           | Cohen, Jonah
+ World History        | Bayartsogt, Gombo
+(10 rows)
+</pre><h2>The Python connection<a name="auto10"></a></h2><p>Importing the module <code>pg</code> into a Python program gives us the same 
+access to the postmaster server that we have with psql.</p><p>Let's play with the pg module in the interactive mode.  The first thing we
+must do in our program is to establish a connection to a database. Here is an
+example. (<code>&gt;&gt;&gt;</code> is Python's prompt)</p><pre class="python-interpreter">
+&gt;&gt;&gt; import pg
+&gt;&gt;&gt; conn = pg.connect(dbname=&quot;school&quot;, host=&quot;localhost&quot;, user=&quot;postgres&quot;)
+</pre><p>Remember that the postmaster server is running on our local machine with
+the <code>-i localhost</code> switch. If your situation is different then you
+would specify the actual computer in the <code>host</code> parameter.</p><p>With a database connection we can perform querys just like with psql.  Let's 
+do one.</p><pre class="python-interpreter">
+&gt;&gt;&gt; result = conn.query(&quot;select * from course&quot;)
+&gt;&gt;&gt; print result
+number|name                |credits|teacherid
+------+--------------------+-------+---------
+   101|Algebra I           |      5|     1003
+   201|Algebra II          |      5|     1002
+   150|World History       |      2|     1001
+   301|Calculus            |      5|     1002
+   314|Computer Programming|      4|     1001
+   204|Spanish II          |      3|     1003
+(6 rows)
+</pre><p>Now, this is nice but we will want to manipulate the results of the query, not
+just print them in this somewhat hokey table format. Happily,
+<code>result</code> is an object with attributes and methods that let us access 
+the data as Python values. In fact its <code>__str__</code> method produces the
+output above. One of the most useful methods is
+<code>dictresult</code> which returns a list of dictionaries. Each dictionary
+represents a row.</p><pre class="python-interpreter">
+&gt;&gt;&gt; print result.dictresult()
+[{'number': 101, 'name': 'Algebra I', 'credits': 5, 'teacherid': 1003},
+{'number': 201, 'name': 'Algebra II', 'credits': 5, 'teacherid': 1002},
+{'number': 150, 'name': 'World History', 'credits': 2, 'teacherid': 1001},
+{'number': 301, 'name': 'Calculus', 'credits': 5, 'teacherid': 1002},
+{'number': 314, 'name': 'Computer Programming','credits': 4, 'teacherid': 1001},
+{'number': 204, 'name': 'Spanish II', 'credits': 3, 'teacherid': 1003}]
+&gt;&gt;&gt;
+</pre><p>I massaged the line endings a bit to make it more clear. Each
+key/value pair in each dictionary represents a column name and value. In the
+small programs to come we'll use this method for making a report.</p><p>Now lets consider joining two tables.</p><pre class="python-interpreter">
+&gt;&gt;&gt; cmd = &quot;&quot;&quot;select course.name,teacher.name from course,teacher
+...           where teacher.id=course.teacherId order by course.name&quot;&quot;&quot;
+&gt;&gt;&gt; result = conn.query(cmd)
+&gt;&gt;&gt; print result
+name                |name
+--------------------+-------------
+Algebra I           |Downey, Allen
+Algebra II          |Meyers, Chris
+Calculus            |Meyers, Chris
+Computer Programming|Elkner, Jeff
+Spanish II          |Downey, Allen
+World History       |Elkner, Jeff
+(6 rows)
+   
+&gt;&gt;&gt; print result.dictresult()
+[{'name': 'Downey, Allen'}, {'name': 'Meyers, Chris'},
+{'name': 'Meyers, Chris'}, {'name': 'Elkner, Jeff'},
+{'name': 'Downey, Allen'}, {'name': 'Elkner, Jeff'}]
+&gt;&gt;&gt;
+</pre><p>Oops! Notice that our dictionaries only have the teacher names and not the
+course names. This is because both tables use the same column name
+<code>name</code>. To get around this we need to apply an alias to one of the
+column names. In this case we choose to give teacher.name the alias
+<code>tname</code>.</p><pre class="python-interpreter">
+&gt;&gt;&gt; cmd = &quot;&quot;&quot;select course.name,teacher.name as tname from course,teacher
+... where teacher.id=course.teacherId order by course.name&quot;&quot;&quot;
+&gt;&gt;&gt; result = conn.query(cmd)
+&gt;&gt;&gt; print result.dictresult()
+[{'name': 'Algebra I', 'tname': 'Downey, Allen'},
+{'name': 'Algebra II', 'tname': 'Meyers, Chris'},
+{'name': 'Calculus', 'tname': 'Meyers, Chris'},
+{'name': 'Computer Programming', 'tname': 'Elkner, Jeff'},
+{'name': 'Spanish II', 'tname': 'Downey, Allen'},
+{'name': 'World History', 'tname': 'Elkner, Jeff'}]
+&gt;&gt;&gt;
+</pre><p>There is another way besides dictresult() to get at the data.  Two methods
+are used; one returns a tuple of the field names and the other a list of tuples 
+with the column values.</p><pre class="python-interpreter">
+&gt;&gt;&gt; print result.listfields()
+('name', 'tname')
+&gt;&gt;&gt; print result.getresult()
+[('Algebra I', 'Downey, Allen'),
+('Algebra II', 'Meyers, Chris'),
+('Calculus', 'Meyers, Chris'),
+('Computer Programming', 'Elkner, Jeff'),
+('Spanish II', 'Downey, Allen'),
+('World History', 'Elkner, Jeff')]
+&gt;&gt;&gt;
+</pre><p>This method probably runs somewhat faster, but programs using dictionaries
+are more readable (IMHO) since the column names appear in the expressions.</p><h2>A little report program<a name="auto11"></a></h2><p>Now we are going to write two versions of a tiny report program that lists
+teachers alphabetically and under each one another alphabetical list of the
+courses they teach. These programs will demonstrate two different ways to
+accomplish the same goal. A bit later we'll discuss when one method might be more
+efficient than the other.</p><pre class="python">
+<span class="py-src-comment">#!/usr/bin/env python
+</span><span class="py-src-comment">#
+</span><span class="py-src-comment">#       Simple report of classes taught by each teacher
+</span><span class="py-src-comment">#
+</span><span class="py-src-keyword">import</span> <span class="py-src-variable">pg</span><span class="py-src-newline">
+</span> <span class="py-src-nl">
+</span><span class="py-src-variable">db</span> <span class="py-src-op">=</span> <span class="py-src-variable">pg</span><span class="py-src-op">.</span><span class="py-src-variable">connect</span><span class="py-src-op">(</span><span class="py-src-variable">dbname</span><span class="py-src-op">=</span><span class="py-src-string">&quot;school&quot;</span><span class="py-src-op">,</span> <span class="py-src-variable">host</span><span class="py-src-op">=</span><span class="py-src-string">&quot;localhost&quot;</span><span class="py-src-op">,</span> <span class="py-src-variable">user</span><span class="py-src-op">=</span><span class="py-src-string">&quot;postgres&quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span> <span class="py-src-nl">
+</span><span class="py-src-keyword">def</span> <span class="py-src-identifier">main</span> <span class="py-src-op">(</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">    </span><span class="py-src-variable">result</span> <span class="py-src-op">=</span> <span class="py-src-variable">db</span><span class="py-src-op">.</span><span class="py-src-variable">query</span><span class="py-src-op">(</span><span class="py-src-string">&quot;select * from teacher order by name&quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>    <span class="py-src-variable">trows</span> <span class="py-src-op">=</span> <span class="py-src-variable">result</span><span class="py-src-op">.</span><span class="py-src-variable">dictresult</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>    <span class="py-src-keyword">for</span> <span class="py-src-variable">trow</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">trows</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">        </span><span class="py-src-variable">tId</span> <span class="py-src-op">=</span> <span class="py-src-variable">trow</span><span class="py-src-op">[</span><span class="py-src-string">'id'</span><span class="py-src-op">]</span><span class="py-src-newline">
+</span>        <span class="py-src-keyword">print</span> <span class="py-src-string">&quot;%s&quot;</span> <span class="py-src-op">%</span> <span class="py-src-variable">trow</span><span class="py-src-op">[</span><span class="py-src-string">'name'</span><span class="py-src-op">]</span><span class="py-src-newline">
+</span>        <span class="py-src-variable">query</span> <span class="py-src-op">=</span><span class="py-src-string">&quot;select * from course where teacherId=%d order by name&quot;</span><span class="py-src-newline">
+</span>        <span class="py-src-variable">result</span> <span class="py-src-op">=</span> <span class="py-src-variable">db</span><span class="py-src-op">.</span><span class="py-src-variable">query</span><span class="py-src-op">(</span><span class="py-src-variable">query</span> <span class="py-src-op">%</span> <span class="py-src-variable">tId</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>        <span class="py-src-variable">crows</span> <span class="py-src-op">=</span> <span class="py-src-variable">result</span><span class="py-src-op">.</span><span class="py-src-variable">dictresult</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>        <span class="py-src-keyword">for</span> <span class="py-src-variable">crow</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">crows</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">            </span><span class="py-src-keyword">print</span> <span class="py-src-string">&quot;  %s&quot;</span> <span class="py-src-op">%</span> <span class="py-src-variable">crow</span><span class="py-src-op">[</span><span class="py-src-string">'name'</span><span class="py-src-op">]</span>  <span class="py-src-comment"># Name of course</span><span class="py-src-newline">
+</span> <span class="py-src-nl">
+</span>    <span class="py-src-dedent"></span><span class="py-src-dedent"></span><span class="py-src-keyword">if</span> <span class="py-src-variable">__name__</span> <span class="py-src-op">==</span> <span class="py-src-string">&quot;__main__&quot;</span> <span class="py-src-op">:</span> <span class="py-src-variable">main</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>In the program above we first select rows from the teacher table. Then for
+each teacher we select the course taught. The output looks like this</p><pre class="shell">
+Downey, Allen
+Algebra I
+Spanish II
+Elkner, Jeff
+Computer Programming
+World History
+Meyers, Chris
+Algebra II
+Calculus
+</pre><p>The second program below takes a different approach. A single select joins
+the teacher and course table together. A single <code>for</code> loop processes 
+the results. A little extra logic is needed when the teacher changes. But the
+result is the same.</p><pre class="python">
+<span class="py-src-comment">#!/usr/bin/env python
+</span><span class="py-src-comment">#
+</span><span class="py-src-comment">#    Simple report of classes taught by each teacher
+</span><span class="py-src-comment">#
+</span><span class="py-src-keyword">import</span> <span class="py-src-variable">pg</span><span class="py-src-newline">
+</span> <span class="py-src-nl">
+</span><span class="py-src-variable">cmd</span> <span class="py-src-op">=</span> <span class="py-src-string">&quot;&quot;&quot;
+select teacher.name as tname, course.name as cname
+from teacher, course
+where teacher.id = course.teacherId
+order by teacher.name, course.name&quot;&quot;&quot;</span>                                     <span class="py-src-newline">
+</span> <span class="py-src-nl">
+</span><span class="py-src-variable">db</span> <span class="py-src-op">=</span> <span class="py-src-variable">pg</span><span class="py-src-op">.</span><span class="py-src-variable">connect</span><span class="py-src-op">(</span><span class="py-src-variable">dbname</span><span class="py-src-op">=</span><span class="py-src-string">&quot;school&quot;</span><span class="py-src-op">,</span> <span class="py-src-variable">host</span><span class="py-src-op">=</span><span class="py-src-string">&quot;localhost&quot;</span><span class="py-src-op">,</span> <span class="py-src-variable">user</span><span class="py-src-op">=</span><span class="py-src-string">&quot;postgres&quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span> <span class="py-src-nl">
+</span><span class="py-src-keyword">def</span> <span class="py-src-identifier">main</span> <span class="py-src-op">(</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">    </span><span class="py-src-variable">curTeacher</span> <span class="py-src-op">=</span> <span class="py-src-variable">None</span><span class="py-src-newline">
+</span>    <span class="py-src-variable">result</span> <span class="py-src-op">=</span> <span class="py-src-variable">db</span><span class="py-src-op">.</span><span class="py-src-variable">query</span><span class="py-src-op">(</span><span class="py-src-variable">cmd</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>    <span class="py-src-variable">rows</span> <span class="py-src-op">=</span> <span class="py-src-variable">result</span><span class="py-src-op">.</span><span class="py-src-variable">dictresult</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>    <span class="py-src-keyword">for</span> <span class="py-src-variable">row</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">rows</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">        </span><span class="py-src-keyword">if</span> <span class="py-src-variable">row</span><span class="py-src-op">[</span><span class="py-src-string">'tname'</span><span class="py-src-op">]</span> <span class="py-src-op">!=</span> <span class="py-src-variable">curTeacher</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">            </span><span class="py-src-variable">curTeacher</span> <span class="py-src-op">=</span> <span class="py-src-variable">row</span><span class="py-src-op">[</span><span class="py-src-string">'tname'</span><span class="py-src-op">]</span><span class="py-src-newline">
+</span>            <span class="py-src-keyword">print</span> <span class="py-src-string">&quot;%s&quot;</span> <span class="py-src-op">%</span> <span class="py-src-variable">curTeacher</span><span class="py-src-newline">
+</span>        <span class="py-src-dedent"></span><span class="py-src-keyword">print</span> <span class="py-src-string">&quot;  %s&quot;</span> <span class="py-src-op">%</span> <span class="py-src-variable">row</span><span class="py-src-op">[</span><span class="py-src-string">'cname'</span><span class="py-src-op">]</span>  <span class="py-src-comment"># Name of course</span><span class="py-src-newline">
+</span> <span class="py-src-nl">
+</span><span class="py-src-dedent"></span><span class="py-src-dedent"></span><span class="py-src-keyword">if</span> <span class="py-src-variable">__name__</span> <span class="py-src-op">==</span> <span class="py-src-string">&quot;__main__&quot;</span> <span class="py-src-op">:</span> <span class="py-src-variable">main</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-endmarker"></span></pre><p>So when is one method better than the other? In an example this small there
+is virtually no difference. However if we had 500 teachers the first method
+would require 501 querys; the second still only one. The second is apt to
+perform much faster. However, if queries get too complex, generally by joining
+too many large tables together, the time required for the server to process them can
+unexpectably explode. The reasons for this are not terribly clear. But the
+solution is to use the first method or a combination of the two where you
+balance minimizing the number of queries and their complexity. It sometimes
+takes some experimentation to find the best answer in each situation.</p><p>The query method will actually take any SQL statement. So you can use it
+to update and delete rows as well as insert rows. When used for these purposes
+no result object is returned.</p><pre class="shell">
+&gt;&gt;&gt; db.query(&quot;update teacher set name='Gardner, Martin' where id=401&quot;)
+</pre><h2>Using tables with indexes<a name="auto12"></a></h2><p>Indexes make searching for rows in a table very fast. You, the user, simply
+tell the server to create an index for a given column (or combination of
+columns) and the server takes care of updating the index as new rows are
+inserted, deleted, or updated. You never have to tell the server to use an
+index. It figures that out from your query.</p><p>To create an index you can issue a simple command from psql. It is uncommon
+to create indexes from Python since it is generally a one-time activity.</p><pre class="shell">
+school=# create index inxTeacherName on teacher (name);
+</pre><p>Indexes are given a name (here inxTeacherName), a table to index and one or
+more columns to build the index from.  To remove an index you drop it.</p><pre class="shell">
+school=# drop index inxTeacherName;
+</pre><p>By using the keyword <code>unique</code> the server will prohibit the
+insertion of a row where the index key is already present. The following pair
+of indexes on the enrolled table make searching both ways (students by course,
+or courses by student) very fast and also guarentee that no student is enrolled 
+in the same course twice.</p><pre class="shell">
+school=# create unique index inxEnrolled1 on enrolled (studentId,courseNum);
+school=# create unique index inxEnrolled2 on enrolled (courseNum,studentId);
+</pre><p>One caveat with using indexes. They can get fragmented with lots of
+insertions, in a manner similiar to disk fragmentation when you add lots of new 
+files. The solution for this is to periodically drop and re-create the index.
+You'll know when it's time when searches start getting slower and slower.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2004-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

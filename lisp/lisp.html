@@ -1,0 +1,243 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Lisp in Python</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Lisp in Python</h1><div class="toc"><ol><li><a href="#auto0">Why Lisp?</a></li><li><a href="#auto1">Introduction to Lisp</a></li><li><a href="#auto2">Representing S expressions in Python.</a></li><li><a href="#auto3">Tail Recursion</a></li><li><a href="#auto4">Walking through the Code.</a></li><li><a href="#auto5">Dynamic Scope</a></li><li><a href="#auto6">Some Ideas for Projects.</a></li></ol></div><div class="content"><span></span><h2>Why Lisp?<a name="auto0"></a></h2><p>Even though we are already programming in Python, which has many of the features of
+Lisp, it is instructive to look at the original Lisp evaluation mechanism. At the heart of
+the Lisp language is an recursive interplay between evaluating expressions, which means applying functions
+to arguments. But that requires further evaluation of the functions arguments and internal
+expressions. The result is an extremely elegant piece of code.</p><p>When I was a student of computer science at the University of Oregon in 1971, I took a
+course in Artificial Intelligence. We got exposed to some of the classic Lisp programs
+but, unfortunately, had no way of running them. So our projects were written in Fortran and
+were not very impressive.</p><p>So when I came across &quot;Lisp in Lisp&quot; taking up most of page 13 of the Lisp 1.5 Users Manual
+I had a stronger motivation than just esthetics to do something with it.
+I figured that if I could translate just that much Lisp into Fortran, then
+I would have the means to run other Lisp programs. It was much easier said than done. Fortran
+did not support recursion and this was an example of true &quot;functional programming&quot;.
+There was not a single GOTO or variable assignment. Each function call and return had
+to done in Fortran with computed GOTO's, first pushing or popping information on stacks
+implemented with Fortran arrays. It was very messy. Later I did a version
+in PDP-11 Assembler and, still later, one in Pascal which was pretty clean.</p><p>This Lisp implemented in Python is mostly a translation of the original Lisp. If you have
+a chance to look at the original Lisp in Lisp, I think you'll agree with me that the Python
+code is much easier to get your head around. Like the original
+it is very short and, except for input of
+S expressions, completely functional. That basically means no variable assignments or
+explicit loops. Where we would normally use a &quot;for&quot; or &quot;while&quot; loop, you will see
+tail recursion.</p><p>I made a few small changes in this design. Lisp supports both lists and binary trees. In fact
+lists in Lisp are simply a special form of tree. Our Python Lisp supports only lists. In addition
+I added two small commands that will let us use the program interactively.</p><h2>Introduction to Lisp<a name="auto1"></a></h2><p>The basis for both programs and data in Lisp is the S (symbolic) expression. An S expression may
+be a symbol, a number, or a series of S expressions in parentheses. Here are some
+examples.</p><pre class="shell">
+george
+54
+(george 54 (sue 48))
+</pre><p>As you can see S expressions may be nested.</p><p>Certain forms of S expressions may be evaluated. For example &quot;(+ 5 4)&quot; would apply
+the primitive function '+' to the arguments (5 and 4) and return the number 9, which is also an
+S expression. All function calls list the function name first, followed by the arguments.
+Here are some more examples of S expression evaluation.</p><pre class="shell">
+S expression        Evaluation   Comments
+
+234                 234          numbers evaluate to themselves
+(quote charlie)     charlie      quote stops further evaluation
+(quote (a b c))     (a b c)      quote stops further evaluation
+'charlie            charlie      'x is shorthand for (quote x)
+t                   t            symbol for &quot;true&quot;
+nil                 nil          symbol for &quot;false&quot; same as ()
+(eq 5 5)            t            eq returns t or nil
+(eq 5 6)            nil
+(car '(a b c))      a            car returns 1st item in a list
+(cdr '(a b c))      (b c)        cdr returns rest of a list
+(cons 'a '(b c))    (a b c)      cons combines args to make a new list
+</pre><p>Notice that we used (car '(a b c)) instead of (car (a b c)). The quote is necessary
+to keep (a b c) from another layer of evaluation. This will be clearer as we
+proceed.</p><p>When eval is called it is passed the S expression and also an association list. The
+above evaluations did not need the association list (alist for short) because we
+were evaluating either constants or functions whose arguments are constants.</p><p>Here is an example alist.</p><pre class="shell">
+((a 2) (b 6) (c (george 45)))
+</pre><p>It pairs the variables a to 2, b to 6, and c to (george 45). Here are some more sample
+evaluations assuming this alist.</p><pre class="shell">
+S expression  Evaluation  Comments
+
+c             (george 45) variables are looked up in the alist
+(eq a 2)      t           arguments to a function are evaluated first
+(eq a b)      nil
+(car c)       george
+</pre><p>Finally, there are a few special forms of S expressions. These are not functions even though
+the look like function calls. Their arguments are not evaluated before processing. One we've already
+seen is <code>quote</code>.
+Another is the &quot;conditional&quot; <code>cond</code> which is very much like a <code>case</code> or <code>switch</code>
+statement in other languages, or like a Python <code>if</code>, <code>elif</code>, ... <code>else</code>. It takes
+the following form.</p><pre class="shell">
+(cond  A B ...)
+</pre><p>where A, B, etc. are lists of two elements each. The first element of each pair is
+evaluated until one is true (not nil). Then the second element of that pair is
+evaluated and that value is returned as the value of the cond.
+The remaining pairs are not evaluated. Generally the last pair has <code>t</code> for its first
+element which makes it work like an <code>else</code>. For example with the <code>alist</code> above</p><pre class="shell">
+(cond ((eq a 1) (cdr george)) (t 3))   would return 3
+(cond ((eq a 2) (cdr george)) (t 3))   would return (45)
+</pre><p>Another special form is used for user defining functions. It is easiest to provide
+an example and explain it. The following is a function definition to square a number.</p><pre class="shell">
+(lambda (x) (* x x))
+</pre><p>The symbol <code>lambda</code> introduces this form. It is followed by an S expression with the
+function parameters, and an S expression which is the body of the funciton.
+It may be applied to arguments just like any primitive function. Again, assuming we
+have the alist above ...</p><pre class="shell">
+((lambda (x) (* x x)) a)     evaluates to 4.
+</pre><p>In evaluation the argument a is evaluated (yields 2). Then the lambda expression
+is applied to 2. The parameter <code>x</code> is paired with 2 on the alist which now looks like</p><pre class="shell">
+((x 2) (a 2) (b 6) (c (george 45)))
+</pre><p>Finally, (* x x) is evaluated. x is replaced with 2 from the alist and the primitive
+function &quot;*&quot; is applied yielding 4.</p><p>I added one special form not in the original code. (def x y) will bind a name x to an
+S expression y. The alist is saved in a global variable when these definitions are
+made and therefore remain for later evaluations. This form is especially useful to
+bind names to functions. For example</p><pre class="shell">
+(def square (lambda (x) (* x x)))
+(sq 4)
+</pre><h2>Representing S expressions in Python.<a name="auto2"></a></h2><p>Python lists are convenient to store S expressions. Nested S expressions can be
+handled simply with nested lists. Strings may be used for symbols and numbers can
+represent themselves. So our S expression <code>(lambda (x) (* x x))</code> would be
+<code>['lambda', ['x'], ['*','x','x']]</code>.</p><h2>Tail Recursion<a name="auto3"></a></h2><p>We should talk about tail recursion a bit. It is used in our Python code although sometimes
+we could have used a <code>for</code> or <code>while</code> loop instead. However if you want to create Lisp functions
+then you must use tail recursion because we are not providing any other means of iteration!</p><p>Lets look at an example. A call to <code>assoc(x,alist)</code> walks down the name/value pairs in the alist
+until it finds a pair whose 1st element matches x. Then it returns the 2nd element (the value).
+Here is how to write assoc using a <code>for</code> loop.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">assoc</span> <span class="py-src-op">(</span><span class="py-src-parameter">x</span><span class="py-src-op">,</span> <span class="py-src-parameter">alist</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">   </span><span class="py-src-keyword">for</span> <span class="py-src-variable">pair</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">alist</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">      </span><span class="py-src-keyword">if</span> <span class="py-src-variable">pair</span><span class="py-src-op">[</span><span class="py-src-number">0</span><span class="py-src-op">]</span> <span class="py-src-op">==</span> <span class="py-src-variable">x</span> <span class="py-src-op">:</span> <span class="py-src-keyword">return</span> <span class="py-src-variable">pair</span><span class="py-src-op">[</span><span class="py-src-number">1</span><span class="py-src-op">]</span><span class="py-src-newline">
+</span>   <span class="py-src-dedent"></span><span class="py-src-keyword">raise</span> <span class="py-src-string">&quot;Lisp error&quot;</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>With tail recursion the function looks like</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">assoc</span> <span class="py-src-op">(</span><span class="py-src-parameter">x</span><span class="py-src-op">,</span> <span class="py-src-parameter">alist</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">   </span><span class="py-src-keyword">if</span>   <span class="py-src-keyword">not</span> <span class="py-src-variable">alist</span>        <span class="py-src-op">:</span> <span class="py-src-keyword">raise</span> <span class="py-src-string">&quot;Lisp error&quot;</span><span class="py-src-newline">
+</span>   <span class="py-src-keyword">elif</span> <span class="py-src-variable">alist</span><span class="py-src-op">[</span><span class="py-src-number">0</span><span class="py-src-op">]</span><span class="py-src-op">[</span><span class="py-src-number">0</span><span class="py-src-op">]</span> <span class="py-src-op">==</span> <span class="py-src-variable">x</span> <span class="py-src-op">:</span> <span class="py-src-keyword">return</span> <span class="py-src-variable">alist</span><span class="py-src-op">[</span><span class="py-src-number">0</span><span class="py-src-op">]</span><span class="py-src-op">[</span><span class="py-src-number">1</span><span class="py-src-op">]</span><span class="py-src-newline">
+</span>   <span class="py-src-keyword">else</span>                  <span class="py-src-op">:</span> <span class="py-src-keyword">return</span> <span class="py-src-variable">assoc</span><span class="py-src-op">(</span><span class="py-src-variable">x</span><span class="py-src-op">,</span><span class="py-src-variable">alist</span><span class="py-src-op">[</span><span class="py-src-number">1</span><span class="py-src-op">:</span><span class="py-src-op">]</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>There are 3 possibilities. If the first pair on the alist is the one we want, return its 2nd element.
+If there is no 1st element, raise an error. Or simply search the rest of the alist recursively.
+Eventually either the right pair will be found or an error will be raised.</p><h2>Walking through the Code.<a name="auto4"></a></h2><p>At this point you will probably want to bring up the code in a separate window, or just
+print it out. It's a couple of pages. The two modules are <a href="lisp.py">lisp.py</a> and <a href="lispio.py">lispio.py</a></p><p>In the module lispio.py we have a function <code>getSexp</code> to input an S expression from the
+user and return the equivalent Python list. We also the have a function <code>putSexp</code> to convert
+a Python list (representing an S expression) to a string in Lisp.</p><p>The function <code>getSexp</code> uses <code>getToken</code> to extract symbols, numbers and special characters from
+the input provided by the user. It also uses itself to extract nested S expressions.
+In turn, <code>getToken</code> uses <code>nextChar</code> to see if the next character is part of the token it is
+building and <code>getChar</code> to grab it. So at the bottom of the food chain is <code>nextChar</code> which actually
+has to deal with getting input from the user.</p><p>Lets play with getToken a bit.</p><pre class="python-interpreter">
+Python 1.5.2 (#6, Aug 31 2000, 10:56:07)  [GCC 2.8.1] on sunos5
+Copyright 1991-1995 Stichting Mathematisch Centrum, Amsterdam
+&gt;&gt;&gt; import lispio
+&gt;&gt;&gt; while 1 :
+...     print lispio.getToken()
+...
+Lisp&gt;a b
+a
+b
+Lisp&gt;(car '(a b))
+(
+car
+'
+(
+a
+b
+)
+)
+Lisp&gt;
+</pre><p>Now let's play with getSexp to see how Lisp S expressions are converted to Python lists.</p><pre class="python-interpreter">
+Copyright 1991-1995 Stichting Mathematisch Centrum, Amsterdam
+&gt;&gt;&gt; import lispio
+&gt;&gt;&gt; while 1 :
+...     print lispio.getSexp()
+...
+Lisp&gt;(car '(a b))
+['car', ['quote', ['a', 'b']]]
+Lisp&gt;(eq a 5)
+['eq', 'a', 5.0]
+Lisp&gt;
+</pre><p>Notice that there are 2 versions of the function <code>nextChar</code>. One just uses <code>raw_input</code> which
+means the user must type everything in. The other uses the userInput module
+letting us put programs in files and running them thru the indirect file mechanism.
+For more information on the UserInput module <a href="../userInput/userInput.html">click here</a>.</p><p>The main functions in lisp.py are apply and eval. Each is a set of if/elif/else
+statements that handle the various options discussed above. The handling is done
+with the Python list operators. The other functions, pairlis, assoc, evcon, and
+evlis are just auxillary functions. The names are the same as in the original Lisp code. You will
+notice that they are tail recursive.</p><p>The function <code>pairlis</code> adds pairs to the alist (returning an expanded alist)
+and <code>assoc</code> finds values for variables in the alist passed.
+The function <code>evcon</code> is special for handling cond expressions as described above.
+<code>evlis</code> is similar to the Python <code>map</code> function. It evaluates each item in the list passed
+and returns a list of the values.</p><p>The lisp main function interacts with the user. As long as the user inputs an
+S expression to evaluate, it is passed to eval and the result printed. If lispio.nextchar
+is using the userInput module then the S expressions may be loaded from a file. This
+is generally used to define functions.</p><p>There are two extra commands handled in eval. <code>def</code> allows us to set variables or define
+functions by adding a pair onto the
+global Alist. And the special symbol <code>alist</code> is permanently set to the global Alist letting
+us view it easily. When the user enters a new S expression to evaluate, we start out with this
+preloaded alist.</p><p>Lets use the interactive mode to evaluate some expresssions.
+Here we use <code>def</code> to set the variable a to 6 on the alist.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import lisp
+&gt;&gt;&gt; lisp.main()
+Lisp&gt;(def a 6)
+a
+Lisp&gt;alist
+((a 6.0))
+Lisp&gt;
+</pre><p>Next we'll do an addition.  The global &quot;debug&quot; is set to one so that each call of eval
+and apply will be printed.</p><pre class="shell">
+Lisp&gt;(+ a 7)
+--Eval--- (+ a 7.0)  alist= ((a 6.0))
+--Eval--- a  alist= ((a 6.0))
+--Eval--- 7.0  alist= ((a 6.0))
+--Apply-- +  Args= (6.0 7.0)  alist= ((a 6.0))
+13.0
+</pre><p>Next we'll define a function sq to square a number and then use it to calculate a**2.</p><pre class="shell">
+Lisp&gt;(def sq (lambda (x) (* x x)))
+--Eval--- (def sq (lambda (x) (* x x)))  alist= ((a 6.0))
+sq
+Lisp&gt;(sq a)
+--Eval--- (sq a)  alist= ((sq (lambda (x) (* x x))) (a 6.0))
+--Eval--- a  alist= ((sq (lambda (x) (* x x))) (a 6.0))
+--Apply-- sq  Args= (6.0)  alist= ((sq (lambda (x) (* x x))) (a 6.0))
+--Eval--- sq  alist= ((sq (lambda (x) (* x x))) (a 6.0))
+--Apply-- (lambda (x) (* x x))  Args= (6.0)  alist= ((sq (lambda (x) (* x x))) (a 6.0))
+--Eval--- (* x x)  alist= ((x 6.0) (sq (lambda (x) (* x x))) (a 6.0))
+--Eval--- x  alist= ((x 6.0) (sq (lambda (x) (* x x))) (a 6.0))
+--Eval--- x  alist= ((x 6.0) (sq (lambda (x) (* x x))) (a 6.0))
+--Apply-- *  Args= (6.0 6.0)  alist= ((x 6.0) (sq (lambda (x) (* x x))) (a 6.0))
+36.0
+Lisp&gt;
+</pre><p>Setting debug back to 0 will enable a more natural, if less informative, interaction.</p><p>We can prepare a function definition in a file and invoke its definition. Here is
+a definition for the function <code>length</code> which returns the number of S expressions in
+a list. I used an indentation style that matches left and right parens either on the
+same line or vertically.</p><pre class="shell">
+(def length
+   (lambda (x)
+      (cond
+         ((not x) 0)
+         (   t   (+ 1 (length (cdr x))))
+      )
+   )
+)
+</pre><p>This function is another example of tail recursion. It counts one for the first element
+of a list and adds that to the length of the rest of the list. An empty list returns
+zero.</p><pre class="shell">
+Lisp&gt;@length.lsp
+length
+Lisp&gt;(length '(a b c d e f g))
+7.0
+Lisp&gt;(length length)
+3.0
+</pre><p>Can you explain why the length of length is 3?</p><h2>Dynamic Scope<a name="auto5"></a></h2><p>An interesting property in this language emerges from using the alist to hold values. Consider
+the following.</p><pre class="shell">
+Lisp&gt;(def a (lambda (x) (b)))
+a
+Lisp&gt;(def b (lambda () (+ x x)))
+b
+Lisp&gt;(a 5)
+10.0
+</pre><p>The function <code>b</code> is able to see the value for <code>x</code> even
+though <code>x</code> is not an argument. In fact the function <code>b</code> doesn't
+take arguments. But since the value of <code>x</code> is determined by a simple search
+of the alist, its setting from the calling function <code>a</code> is found.</p><h2>Some Ideas for Projects.<a name="auto6"></a></h2><p>You can extend this program in many ways. Extra primitives like turning the debug
+flag on and off, or providing access to user input would be useful. The system could
+also be expanded with functions written in Lisp (like length) that are loaded at input.
+A more complete system could be a combination of Python and Lisp.
+For the  ambitious, the Python code could be translated back to Lisp and then
+you could run Lisp in Lisp in Python. Compare its speed to just Lisp in Python and
+then to a regular interpreter like Scheme.</p>
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2003-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

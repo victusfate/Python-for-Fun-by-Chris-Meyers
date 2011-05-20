@@ -1,0 +1,11 @@
+create table enrolled (studentId int, courseNumber int);
+insert into enrolled values (411, 201);
+insert into enrolled values (411, 150);
+insert into enrolled values (411, 314);
+insert into enrolled values (412, 101);
+insert into enrolled values (412, 301);
+insert into enrolled values (412, 314);
+insert into enrolled values (413, 204);
+insert into enrolled values (413, 314);
+insert into enrolled values (414, 204);
+insert into enrolled values (414, 314);

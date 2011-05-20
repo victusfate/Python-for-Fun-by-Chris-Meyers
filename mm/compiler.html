@@ -1,0 +1,292 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: Simple Compiler for MM</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">Simple Compiler for MM</h1><div class="toc"><ol><li><a href="#auto0">Motivation for Compilers</a></li><li><a href="#auto1">Interpreters</a></li><li><a href="#auto2">The MH Compiler</a></li><li><a href="#auto3">The Compilation Process</a></li><li><a href="#auto4">A Simple Compiler in Python</a></li><li><a href="#auto5">Some Sample Compilations</a></li><li><a href="#auto6">A Closer Look at the Code</a></li><li><a href="#auto7">Compiling and Assembling the Factorial Program</a></li><li><a href="#auto8">Further considerations</a></li></ol></div><div class="content"><span></span><p><a href="compiler.py">Click here for the Python code for the MM Compiler</a></p><p>In this section we will build a small compiler that will
+translate expressions and statements in a python like mini-language
+into assembly language for our MM computer.</p><h2>Motivation for Compilers<a name="auto0"></a></h2><p>The assembler certainly makes it easier to write machine
+language programs but it would be still nicer to be able to
+program with expressions like &quot;a=(a+b)*c&quot; instead of, say</p><pre class="shell">
+   ld  r0,a
+   ld  r1,b
+   add r0,r1
+   ld  r1,c
+   mul r0,r1
+   sto r0,a
+</pre><p>So just as assemblers can assemble machine instructions from their
+symbolic parts, compilers are programs to compile sets of
+assembler instructions for more complex expressions. Some of
+the earliest compilers were for the language Fortran which stands
+for Formula Translation.  With Fortran a programmer could write
+code much more concisely and easily than with assembler. The compiled
+machine code was generally not quite as good as what could be
+produced by hand in assembler but it was often good enough, even when machines
+were absolutely miniscule by today's standards. Furthermore, knowing
+Fortran (or other languages like Cobol or Algol) meant that a programmer could
+write code for any computer that had the appropriate compiler, not
+just for the computer for which one knew the assembler code. Today
+the most common compiled language that produces machine
+code for personal computers is probably C.</p><h2>Interpreters<a name="auto1"></a></h2><p>From the start there was also a parallel effort to design and build
+interpreted languages. In general these languages do not try to
+produce machine code directly but rather interpret instructions
+that can do much more advanced operations than what the basic hardware
+supports. Early interpreted languages include Basic, APL
+(A Programming Language), and Lisp. Interpreted programs run much slower
+than compiled programs but in general are often easier to write
+and maintain. Python is an interpreted language and for programs
+that easily translate from Python to C, the C version will often
+run 30 to 50 times faster. But if we are doing the kinds of things
+Python does well (our MM compiler is a good example) the speed difference
+is less pronounced.
+We often are quite willing to give up a little speed to gain some
+very powerful operations that in turn result in consise code that
+is easy to understand.</p><h2>The MH Compiler<a name="auto2"></a></h2><p>Our language, which we'll call MH, is designed to be as small as
+possible but able to have programs like the factorial program from the
+previous section. We'll have only interger variables
+and, like Python, variables do not have to be declared.
+Variables and numbers may be combined in expressions with
+operators (+,-,*, and /) and anywhere a variable or number
+may appear a subexpression in parentheses may be used instead.</p><p>In order to keep the compiler very small we'll support just two kinds of
+basic statements; assignment and the &quot;while&quot; statement. In addition there is
+a compound statement, a series of other
+statements inside a pair of curly braces &quot;{\}&quot;.</p><p>So lots of stuff (most) is left out. But there is enough to write the simple
+factorial program which will use most of the features just mentioned.
+Near the end of this section will be some suggstions for extending
+the language.</p><p>Let's look at an example program in MH.
+Here is code for computing the factorial of 5.</p><pre class="shell">
+term = 5
+ans  = 1
+while term { ans=ans*term  term=term-1 }
+ans
+</pre><p>As you can see, the program has some assignment statements and a
+while statement. There is also a expression at the end whose purpose
+will be explained later.
+The 2 statements enclosed in curly braces form a single compound statement
+that forms the body of the while statement. The test expression in the
+while statement &quot;term&quot; will cause the statements in the body of
+the while to be repeated until the value of term is zero.
+This, of course, will cause the variable &quot;ans&quot; to be multiplied
+by 5, 4, 3, 2, and finally 1.</p><p>Notice that unlike Python, statements do not need to be on
+separate lines or indented. This syntax is closer to
+the C language, with the exception that in C
+statements are required to be terminated with a semicolon.</p><h2>The Compilation Process<a name="auto3"></a></h2><p>The compilation process consists of parsing the code in the
+input language (MH) and then generating code in the target
+language (MM assembly). The parsing phase itself consists of
+two parts; identifying the tokens of the language such as
+variables, numbers, keywords and special symbols, and then
+determining how these tokens relate to one another to form
+expressions and statements. Sometimes compilers will build
+tree structure is to store these relationships but our
+little compiler does not go to such lengths. As the various
+pieces of input code come together output code is generated
+somewhat on the fly. The reason we can do this is that the
+grammer of our language is simple enough that the program
+can be scanned and the structure determined by simply knowing
+what has come so far and what the next token is to the right.</p><h2>A Simple Compiler in Python<a name="auto4"></a></h2><p>This is probably a good time to look over the <a href="compiler.py">compiler.py</a>
+and either keep it in a separate window or make a
+printout to follow the remainder of this discussion.</p><p>The function getToken extracts the next token from the
+program and returns it along with the rest of the program.
+It extracts keyword or variable names, numbers and special
+symbols. Lets try it out on some input.</p><pre class="python-interpreter">
+&gt;&gt;&gt; import compiler
+&gt;&gt;&gt; compiler.getToken(&quot;while a b=a&quot;)
+['while', ' a b=a']
+&gt;&gt;&gt;
+</pre><p>So you can see that a call to getToken removed the
+keyword &quot;while&quot; and returned it and the rest of the
+program in a list. Let's look at the code in getToken
+briefly. The string.strip function first removes whitespace
+including spaces, tabs and newlines. Then the next character
+is examined. If it is a letter then a word is gathered as in
+the example above. If it is a digit, a string representing an
+integer is returned. Finally a single character, perhaps an
+&quot;+&quot;, &quot;=&quot;, or &quot;{&quot; is returned. In any case what is returned is
+the next item of information that forms the structure of the
+program.</p><p>If MH were extended we would want getToken smart enough to return
+pairs of special characters like &quot;**&quot; or &quot;&lt;=&quot; as single tokens. You
+might consider how you would do this. We would also need a way
+to ignore comments in the program.</p><p>Let's look at the nature of possible statments in MH. The simplest
+is an expression all by itself. An expression in MH is a series of &quot;terms&quot;
+separated by an operator ('+','*',etc). &quot;Terms&quot; are numbers, variables,
+or subexpressions enclosed in parentheses. Expressions and terms
+are recursive structures and our functions &quot;getExpr&quot; and &quot;getTerm&quot;
+call each other recursively as well.</p><p>This expression statement, which is also possible in Python, is a little
+boring because it computes a value and then promptly throws it away.
+An assignment statement however sets a variable to the value computed.
+In MH only a simple variable is allowed on the lefthand side of the
+assignment operator &quot;=&quot;.</p><p>A compound statment is a series of statements bracketed by &quot;{&quot; and
+&quot;}&quot;. The inner statements may be assignments, while statements and
+other compound statements.</p><p>
+The while statment takes the form &quot;while &lt;expression&gt; &lt;statement&gt;&quot;. Here
+&quot;&lt;statement&gt;&quot; is apt to be a compound statment and is repeated as
+long as the &quot;&lt;expression&gt;&quot; evaluates to a nonzero value.
+</p><h2>Some Sample Compilations<a name="auto5"></a></h2><p>It is useful to play with the compiler before examining the code
+in detail. This will allow us to see what sort of assembly
+code is produced. The compiler accepts a mini-program
+on the command line (or standard input) and outputs the resultant assembly
+code to standard output.</p><p>Let's look at what must be the simplest possible program. A single
+statement which in turn is a single number, &quot;3&quot;.</p><pre class="shell">
+$ python compiler.py &quot;3&quot;
+  ld# r0,3
+  hlt
+</pre><p>The generated code simply loads the number 3 into register 0. In
+general the compiler will generate code to get the result of any
+expression into a chosen register, starting with 0 and working up
+as it needs more registers. This, by the way, is why our MM architecture
+includes 10 general registers. Let's look at a slightly more complex
+expression, &quot;a*3&quot;. Note that it is necessary to quote the expression
+to keep the shell from trying to evaluate special characters like
+&quot;*&quot;.</p><pre class="shell">
+$ python compiler.py &quot;a*3&quot;
+  ld  r0,a
+  ld# r1,3
+  mul r0,r1
+  hlt
+</pre><p>Here the subexpression &quot;a&quot; is &quot;calculated&quot; in register 0 and the
+subexpression &quot;3&quot; in register 1 (the next register).
+Then the multiply instruction
+leaves the result in register 0. Not shown here is a memory word
+allocated to the variable &quot;a&quot;. Next, let's try a nested expression</p><pre class="shell">
+$ python compiler.py &quot;(b+3)*a&quot;
+  ld  r0,b
+  ld# r1,3
+  add r0,r1
+  ld  r1,a
+  mul r0,r1
+</pre><p>This expression requires r0 and r1 to compute &quot;b+3&quot; and then reuses
+register 1 to hold &quot;a&quot; before the multiply.</p><p>Let's extend this just a bit by compiling an assignment statement.
+Now the output looks like this.</p><pre class="shell">
+$ python compiler.py &quot;c=(b+3)*a&quot;
+  ld  r0,b
+  ld# r1,3
+  add r0,r1
+  ld  r1,a
+  mul r0,r1
+  sto r0,c
+  hlt
+c 0
+</pre><p>The calculation is followed by &quot;sto r0,c&quot; which stores the result
+of the computation into the variable &quot;c&quot;. Also a line was added to
+allocate a word of memory for &quot;c&quot;. As we'll see, these allocations
+all take place at the end of our program so they are out of the way
+of the code. The compiler will remember to allocate a word of memory
+for any variable that gets something assigned to it. That should include
+all variables that we use.</p><p>Finally let's look at the output of a very simple while loop. It's not
+meant to be a real one since the conditional term does not change. But it
+will illustrate the code that is generated.</p><pre class="shell">
+python compiler.py &quot;while a {b=b*c a=a-1}&quot;
+z1
+  ld  r0,a
+  jz  r0,z2
+
+  ld  r1,b
+  ld  r2,c
+  mul r1,r2
+  sto r1,b
+
+  ld  r1,a
+  ld# r2,1
+  sub r1,r2
+  sto r1,a
+  jmp  z1
+z2
+  hlt
+a 0
+b 0
+</pre><p>The while loop uses the &quot;jump on zero&quot; machine instruction to jump out
+of the loop and a simple jump to repeat the loop. It also generates
+labels &quot;z1&quot; and &quot;z2&quot; for the destinations of the jump instructions. Later
+while statements would generate labels like &quot;z3&quot;, &quot;z4&quot;, etc.</p><p>I've put in some blank lines to separate the code generated by the
+different expressions. You should be able to recognize which parts belong
+with what.</p><h2>A Closer Look at the Code<a name="auto6"></a></h2><p>We've already looked at &quot;getToken&quot;. Let's look at the other functions from
+the top down.</p><p>Function &quot;main&quot; reads an entire program from either standard input or (as we've
+seen) from the command line. It repeatably calls &quot;getStat&quot; to peel one
+statement at a time from the program and print the resulting
+assembly code. As we'll see the dictionary vars contains an entry for each
+variable found and &quot;main&quot; reserves a word of memory for each.</p><p>Like &quot;getToken&quot; the 3 other functions &quot;getStat&quot;, &quot;getTerm&quot; and &quot;getExpr&quot; return
+two values; the assembly code generated and the remainder of the program
+still to be compiled.</p><p>Function &quot;getStat&quot; looks at the first token. If it is &quot;while&quot; it gets
+an expression for the condition test, putting the assembly code into
+string &quot;code1&quot;, and another statement (calling itself recursively) for
+the body (in &quot;code2&quot;). It then makes two unique lables in &quot;l1&quot; and &quot;l2&quot;
+and combines all to produce the code which is returned along with the
+rest of the program. Other sections of &quot;getStat&quot; handle the assignment
+statement, compound statments and a single expression. Part of compiling
+an assignment statement is to add an entry to the &quot;vars&quot; dictionary for
+each variable on the left of the &quot;=&quot;.</p><p>By this point the remaining two functions, &quot;getExpr&quot; and &quot;getTerm&quot; should
+be fairly straightforward. The only tricky bit is the mutual recursion between
+them. Expressions consist of terms which may be variables, numbers or
+subexpressions in parentheses separated by operators.
+If you are confused run the test above with some &quot;print&quot; statements inserted.</p><h2>Compiling and Assembling the Factorial Program<a name="auto7"></a></h2><p>Now let's compile the factorial program at the top of this section and
+produce MM code that can be run in the simulator. We'll start by placing
+the following MH code into a file called &quot;fact.mh&quot;</p><pre class="shell">
+term = 5
+ans  = 1
+while term { ans=ans*term  term=term-1 }
+ans
+</pre><p>On Unix it is possible to run the compiler and assembler together since both
+are using standard input and standard output. In fact many compilers take advantage
+of this. Here is our factorial program ready to load into the simulator.</p><pre class="shell">
+$ python compiler.py &lt; fact.mh | python assembler.py
+100 030005     ld# r0,5
+101 020117     sto r0,term
+102 030001     ld# r0,1
+103 020118     sto r0,ans
+             z1
+104 010117     ld  r0,term
+105 110115     jz  r0,z2
+106 011118     ld  r1,ans
+107 012117     ld  r2,term
+108 071002     mul r1,r2
+109 021118     sto r1,ans
+110 011117     ld  r1,term
+111 032001     ld# r2,1
+112 061002     sub r1,r2
+113 021117     sto r1,term
+114 100104     jmp  z1
+             z2
+115 010118     ld  r0,ans
+116 000000     hlt
+117 000000   term 0
+118 000000   ans 0
+</pre><p>The last statement of the program is simply the expression &quot;ans&quot;. As you can see this
+loads it into general register zero where it can be observed in the simulator.
+The following creates a machine language file and runs it in the simulator.</p><pre class="shell">
+  python compiler.py &lt; fact.mh | python assembler.py &gt;fact.mm
+  python simulator.py fact.mm
+</pre><h2>Further considerations<a name="auto8"></a></h2><p>It is interesting to compare the assembly language output from the compiler with
+the assembly language program for computing factorials that we built in the
+previous section. The hand built version is about half the size of the
+compiler output. For a long time people continued to program in assembler just
+for this advantage. The space advantage is also a runtime advantage. Smaller programs
+run faster with fewer instructions to execute.
+Later, compilers were made to optimize their output and that closed the gap somewhat.</p><p>Our compiler treats all operators that it supports with the same precedence. You
+can see this by compiling &quot;a*b+c&quot; and &quot;a*(b+c)&quot;. They produce the same code. To
+fix this &quot;getExpr&quot; must be broken into separate functions for each precedence
+level. Sums can be products separated by &quot;+&quot; and &quot;-&quot; operators. Products are
+terms separated by &quot;*&quot; and &quot;/&quot;. There are several other levels,
+exponentiation and logical operations, even array access.</p><p>Defining functions and calling them with arguments demands operations that work
+with stacks. Stacks may also be used in lieu of multiple registers for computing
+nested expressions and then combining them later. Compilers are sometimes
+defined as being either stack oriented or register oriented. In fact the
+way our compiler uses successive registers is very similar to using
+a stack.</p><p>Our compiler does not support function calls or definitions. Typically
+when a function is
+called its arguments are evaluated and pushed onto a stack. The function is
+then invoked saving the return address as well, either on the same stack
+or on another. When
+the function returns the arguments are popped from the stack and the function
+return value is pushed.</p><p>Python, Java and some other languages perform what they call compilation, but
+instead of compiling to machine code they compile to an intermediate code that
+is then interpreted very much like our simulator program works. However
+the basic operations in this code are much more powerful than our
+machine instructions. Here strings can be added, dictionaries accessed
+and so on. In python compilation happens automatically. When you
+import a module Python will try to save the compiled code in a file with
+the &quot;pyc&quot; extension. The Python interpreter
+then takes over to run the code. With Java the interpreters are available in
+web browsers which load compiled Java classes and run them. These interpreters
+go by the name of &quot;Java Virtual Machine&quot;. There is also a Python compiler called
+Jython written in Java that translates Python source code into Java classes.</p>
+
+<p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2003-2009 Chris Meyers</p>
+
+</div><p><a href="../index.html">Index</a></p></body></html>

@@ -1,0 +1,81 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: The Tower of Hanoi Revisted with Objects</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">The Tower of Hanoi Revisted with Objects</h1><div class="toc"><ol></ol></div><div class="content"><span></span><p>The Tower of Hanoi is a classic game that is often emulated on computers to demonstrate
+recursion.</p><p>The game runs as follows. There are a number of discs each with a hole in the center. Each
+disc can fit on any of 3 pegs and each peg is high enough to hold all the discs in a
+stack. In the initial configuration all the discs are stacked on the first peg with the
+largest disc on the bottom and the smallest on top. A disc is never stacked on top of a
+smaller disc. The problem is to move the discs, one at a time from peg to peg in such a
+way that this is always true and to finally end up with all of the discs on peg 3 in
+the original order.</p><p>The solution is elegant. Let's call the three pegs A, B, and C. If you don't know how to
+move 5 discs from A to C (using B for intermediate storage), then just move 4 discs from
+A to B, one disk from A to C (this is really easy) and then move 4 discs from B to C.
+Can't do 4 discs? Well then, move just 3 ...</p><p>Guido's hanoi.py in the Python Demo area is a nice demonstration of this recursive process.
+The heart of the program is just this.</p><pre class="python">
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">hanoi</span><span class="py-src-op">(</span><span class="py-src-parameter">n</span><span class="py-src-op">,</span> <span class="py-src-parameter">a</span><span class="py-src-op">,</span> <span class="py-src-parameter">b</span><span class="py-src-op">,</span> <span class="py-src-parameter">c</span><span class="py-src-op">,</span> <span class="py-src-parameter">report</span><span class="py-src-op">)</span><span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">   </span><span class="py-src-keyword">if</span> <span class="py-src-variable">n</span> <span class="py-src-op">&lt;=</span> <span class="py-src-number">0</span><span class="py-src-op">:</span> <span class="py-src-keyword">return</span><span class="py-src-newline">
+</span>   <span class="py-src-variable">hanoi</span><span class="py-src-op">(</span><span class="py-src-variable">n</span><span class="py-src-op">-</span><span class="py-src-number">1</span><span class="py-src-op">,</span> <span class="py-src-variable">a</span><span class="py-src-op">,</span> <span class="py-src-variable">c</span><span class="py-src-op">,</span> <span class="py-src-variable">b</span><span class="py-src-op">,</span> <span class="py-src-variable">report</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>   <span class="py-src-variable">report</span><span class="py-src-op">(</span><span class="py-src-variable">n</span><span class="py-src-op">,</span> <span class="py-src-variable">a</span><span class="py-src-op">,</span> <span class="py-src-variable">b</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>   <span class="py-src-variable">hanoi</span><span class="py-src-op">(</span><span class="py-src-variable">n</span><span class="py-src-op">-</span><span class="py-src-number">1</span><span class="py-src-op">,</span> <span class="py-src-variable">c</span><span class="py-src-op">,</span> <span class="py-src-variable">b</span><span class="py-src-op">,</span> <span class="py-src-variable">a</span><span class="py-src-op">,</span> <span class="py-src-variable">report</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>The other 99% of the program involves doing the TK graphics to make it a real demo.
+Here is a screen shot of the game in progress.</p><p><img src="hanoi.gif" /></p><p>I've tried a couple of times to teach the Hanoi puzzle as a good example of recursion.
+It is much better than the usual factorial example which does nothing more than
+use recursion to replace a simple for loop.
+But students have a hard time getting it. And I think the problem is the difficulty in
+visualizing the nested context of the recursive calls.</p><p>The recursion can be avoided, or at least made more intuative  by using an object
+oriented approach. Then the discs, as objects, can hold the information normally held
+in the call stack.</p><p>Lets think of the discs as being animated and that we can request one of them to move
+itself, along with all of the smaller brethen above it, to another peg.
+We'll have each disc use
+the following strategy. If there is no smaller disc on top, simply move to the requested
+peg. But if there is, pass the buck. First ask the smaller disc above you to move to
+the alternate peg (along with its brethren above, if any), make your move, and finally
+ask the same disc to now move to your peg. When that is done, declare success. Each
+disc will need only to talk to the one just smaller</p><p>It might prove instructive to have
+the game played in a classroom with a different student playing the role of
+each disc. It might be a good idea to choose students by height to represent larger or
+smaller discs so that it is easy to see that the rules are being followed. Have 3 lines (A,B,C)
+that the students can stand in and initially line them up on A, tallest to
+shortest. Finally ask the tallest student representing the largest disc
+to move to line C.</p><p>Each student must follow these instructions exactly. It's probably a good idea that each
+have their own copy and use a pencil to keep track of exactly where they are at all times.</p><pre class="shell">
+ If you are requested to move to another line then
+   If no one is in front, move to that line and say &quot;OK&quot;.
+ Otherwise
+   Ask the person in front of you to move to the alternate line
+     (not the one you will move to).
+   Wait for that person to say &quot;OK&quot;.
+   Move to line you were requested to.
+   Ask the same person to move to the line you are now on.
+   Wait for that person to say &quot;OK&quot;
+ Say &quot;OK&quot;
+</pre><p>Play this game with 1, 2, 3, and 4 players. How many total moves are made in each case?
+How many moves would you expect for 5 players? 10 players? The monks of Hanoi were
+said to play the game with 64 discs and when finished, the universe would end. How well
+does this jive with current cosmology? ;)</p><p><a href="tower.py">Click here to view the source code of tower.py</a>. It is a small python program
+that essentially follows these instructions.
+Here is a sample run when we import it.</p><pre class="shell">
+   &gt;&gt;&gt; import tower
+   &gt;&gt;&gt; tower.test()
+   A : I have been requested to move to peg 3
+   A : Asking B to get out of my way and move to peg 2
+   B : I have been requested to move to peg 2
+   B : Asking C to get out of my way and move to peg 3
+   C : I have been requested to move to peg 3
+   C : Moving to 3
+   B : Moving to 2
+   B : Asking C to rejoin me on peg 2
+   C : I have been requested to move to peg 2
+   C : Moving to 2
+   A : Moving to 3
+   A : Asking B to rejoin me on peg 3
+   B : I have been requested to move to peg 3
+   B : Asking C to get out of my way and move to peg 1
+   C : I have been requested to move to peg 1
+   C : Moving to 1
+   B : Moving to 3
+   B : Asking C to rejoin me on peg 3
+   C : I have been requested to move to peg 3
+   C : Moving to 3
+</pre><p><a href="http://www.ibiblio.org/cmeyers/copyright/copyright.html"><p id="Footer"><a href="http://www.gnu.org/copyleft/copyleft.html">
+Copyright</a> &copy; 2004-2009 Chris Meyers</p>
+</div><p><a href="../index.html">Index</a></p></body></html>

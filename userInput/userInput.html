@@ -1,0 +1,90 @@
+<?xml version="1.0"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><title>Twisted Documentation: User Input</title><link href="py4fun.css" type="text/css" rel="stylesheet" /></head><body bgcolor="white"><h1 class="title">User Input</h1><div class="toc"><ol></ol></div><div class="content"><span></span><p>This case study looks at inheritance with a small set of classes to handle
+user input.</p><p>Input from the user may be done in a couple of ways in Python.  The function 
+<code>raw_input</code> may be used to input a string and <code>input</code> is
+commonly used for numbers. Actually any Python expression may be input.</p><p>In this study we will take a somewhat different approach. First some
+background.</p><p>Digital Equipment Corp. (DEC) has had a successful family of mini computers
+that began with the PDP-11 in the 1970's, extended to the VAX series in the
+80's and 90's, and today is represented by the DEC ALPHA. Several of the
+operating systems on these machines have an interesting feature called indirect 
+files.</p><p>Using the correct call to the OS, the system prompts the user for input. If
+the user inputs a response, it is returned. If the user inputs the end of file
+character (Cntl-Z on these systems) it is a signal that the program should
+exit. But if the user responds with <q>@</q> followed by a filename, it
+indicates that the program should open this (indirect) file and read a line
+which becomes the users response. Further calls for input read successive lines
+from the file until there are no more. Then the user is prompted again to
+input from the console. This general and fairly simple mechanism made it
+possible for almost all programs to be easily scripted.</p><p>While input is taken from the indirect file nothing is printed on the user
+terminal.  In addition, the indirect file may also contain a reference to
+another indirect file. This nesting may be arbitrarily deep.</p><p>We will build a little set of classes to emulate this behavior plus a
+couple of additional features. Click <a href="userInput_py.html">here</a> to
+see the full Python source.</p><p>The class InputString provides a method <code>get</code> that to get input
+from the user of indirect file. The filStack list contains a stack of open file 
+instances of indirect files are currently active. If none are open, filStack is 
+an empty list.  The method <code>get</code> uses a while loop to read lines
+from either the user or the current indirect file until it has a valid line to
+return, or the user has input the end of file character.</p><p>There are two additional features to our class. When the InputString object
+is created the option <code>Echo=1</code> may be included to force prompts and
+responses to be printed whether coming from the user or indirect files. The
+default <code>Echo=0</code> inhibits this for indirect files. The second
+feature allows comments to included which are skipped over, that is, not passed 
+back to the program. A comment is any line begining with the <code>#</code>
+character.</p><p>Here is a snippet of code showing how the class is used</p><pre class="python">
+<span class="py-src-variable">inp</span> <span class="py-src-op">=</span> <span class="py-src-variable">InputString</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-keyword">while</span> <span class="py-src-number">1</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">    </span><span class="py-src-variable">lin</span> <span class="py-src-op">=</span> <span class="py-src-variable">inp</span><span class="py-src-op">.</span><span class="py-src-variable">get</span><span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>    <span class="py-src-keyword">if</span> <span class="py-src-variable">lin</span> <span class="py-src-op">==</span> <span class="py-src-string">&quot;&quot;</span> <span class="py-src-op">:</span> <span class="py-src-keyword">break</span><span class="py-src-newline">
+</span>    <span class="py-src-op">.</span><span class="py-src-op">.</span><span class="py-src-op">.</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>Notice that filStack is defined within the class definition but outside of
+any method.</p><pre class="python">
+<span class="py-src-keyword">class</span> <span class="py-src-identifier">InputString</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">    </span><span class="py-src-variable">filStack</span> <span class="py-src-op">=</span> <span class="py-src-op">[</span><span class="py-src-op">]</span><span class="py-src-newline">
+</span>    <span class="py-src-keyword">def</span> <span class="py-src-identifier">__init__</span> <span class="py-src-op">(</span><span class="py-src-parameter">self</span><span class="py-src-op">,</span> <span class="py-src-parameter">Echo</span><span class="py-src-op">=</span><span class="py-src-number">0</span><span class="py-src-op">)</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">        </span><span class="py-src-op">.</span><span class="py-src-op">.</span><span class="py-src-op">.</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>This makes filStack a <em>class variable</em>, a single variable accessible
+to all class instances as <code>self.filStack</code>. This means that
+subclasses of InputString will all read from the same set of files. There is
+only one user.</p><p>Next we subclass InputString and make InputWord. Each call to its
+<code>get</code> method will return the next word from either direct or
+indirect input. It uses InputString.get to retrieve a line, splits it into a
+list of words, and returns the next word each time it is called.</p><p>Finally we subclass InputWord to make InputNumber. This is fairly simple
+since words are simply replaced by numbers in the input. We use the
+<code>string.atoi</code> function to convert them. The empty string is checked
+for (end of file from user) and passed through.  Otherwise the word returned is 
+converted to a integer and returned.</p><p>As an example we'll build a spell checker in python using a set of files
+containing correctly spelled words to fill a dictionary. These files may be
+retrieved from <a href="spell.tar.gz">spell.tar.gz</a>. Here is a bit of
+<code>dict.w</code></p><pre>
+   wacky wade waded wad-cutters wading waffling wage wage-price waged
+   wages waging wagon wagons wail wailed waist waistband waists wait
+   waited waiter waiters waiting waitress waits waive waived waiver ...
+</pre><p>And here is the program code</p><pre class="python">
+<span class="py-src-variable">inp</span> <span class="py-src-op">=</span> <span class="py-src-variable">InputWord</span> <span class="py-src-op">(</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span><span class="py-src-variable">words</span> <span class="py-src-op">=</span> <span class="py-src-op">{</span><span class="py-src-op">}</span><span class="py-src-newline">
+</span><span class="py-src-keyword">while</span> <span class="py-src-number">1</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">    </span><span class="py-src-variable">w</span> <span class="py-src-op">=</span> <span class="py-src-variable">inp</span><span class="py-src-op">.</span><span class="py-src-variable">get</span><span class="py-src-op">(</span><span class="py-src-string">&quot;Input Word to fill: &quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>    <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">w</span> <span class="py-src-op">:</span> <span class="py-src-keyword">break</span><span class="py-src-newline">
+</span>    <span class="py-src-variable">words</span><span class="py-src-op">[</span><span class="py-src-variable">w</span><span class="py-src-op">]</span> <span class="py-src-op">=</span> <span class="py-src-number">1</span><span class="py-src-newline">
+</span>    <span class="py-src-keyword">print</span><span class="py-src-newline">
+</span>    <span class="py-src-keyword">while</span> <span class="py-src-number">1</span> <span class="py-src-op">:</span><span class="py-src-newline">
+</span><span class="py-src-indent">        </span><span class="py-src-variable">w</span> <span class="py-src-op">=</span> <span class="py-src-variable">inp</span><span class="py-src-op">.</span><span class="py-src-variable">get</span><span class="py-src-op">(</span><span class="py-src-string">&quot;Input Word to check: &quot;</span><span class="py-src-op">)</span><span class="py-src-newline">
+</span>        <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">w</span> <span class="py-src-op">:</span> <span class="py-src-keyword">break</span><span class="py-src-newline">
+</span>        <span class="py-src-keyword">if</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">words</span><span class="py-src-op">.</span><span class="py-src-variable">has_key</span><span class="py-src-op">(</span><span class="py-src-variable">w</span><span class="py-src-op">)</span> <span class="py-src-op">:</span> <span class="py-src-keyword">print</span> <span class="py-src-variable">w</span><span class="py-src-op">,</span> <span class="py-src-string">&quot;Misspelled, Try Again&quot;</span><span class="py-src-newline">
+</span><span class="py-src-dedent"></span><span class="py-src-dedent"></span><span class="py-src-endmarker"></span></pre><p>We will make an indirect file of word files named <strong>words.all</strong>
+that looks like this.</p><pre>
+   @dict.a
+   @dict.b
+   @ ...
+</pre><p>And finally we run the code above. Note that <code>^D</code> is a
+single character (Control-D).</p><pre class="shell">
+   Input Word to fill: @words.all
+   Input Word to fill: ^D
+   Input Word to check: now is the time for all good men
+   Input Word to check: to hellp their parrty
+   hellp Misspelled, Try Again
+   parrty Misspelled, Try Again
+   Input Word to check:
+</pre><p><a href="http://www.ibiblio.org/cmeyers/copyright/copyright.html">Copyright</a> 
+(c)  2001  Chris Meyers
+</p></div><p><a href="../index.html">Index</a></p></body></html>
