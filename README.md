@@ -12,10 +12,24 @@ Script:
 output pdf:  
 py4fun.pdf  
 
-uploaded and converted pdf to epub with <a href="http://www.2epub.com/">2epub.com</a>  
-Browse to pdf file  
-upload file  
-download epub  
+<ol>
+<li>First attempt at pdf to epub:
+	<blockquote>  
+	uploaded and converted pdf to epub with <a href="http://www.2epub.com/">2epub.com</a>  
+	Browse to pdf file  
+	upload file  
+	download epub  
 
-Final epub:  
-py4fun.epub  
+	First epub:  
+	orig_py4fun.epub  (360kbytes)
+
+	But the links weren't working in that file on my iOS devices...  
+	</blockquote>
+</li>
+<li>Second try:
+	<blockquote>
+I used the Mac Store <a href="http://itunes.apple.com/us/app/pdf-converter/id414200948?mt=12">PDF Converter</a> to create py4fun.epub (11mbytes).
+</blockquote></li>
+</ol>
+
+
