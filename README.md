@@ -28,8 +28,10 @@ py4fun.pdf
 </li>
 <li>Second try:
 	<blockquote>
-I used the Mac Store <a href="http://itunes.apple.com/us/app/pdf-converter/id414200948?mt=12">PDF Converter</a> to create py4fun.epub (11mbytes).
-</blockquote></li>
+		I used the Mac Store PDF Converter to create py4fun.epub (11mbytes). That $60 product was a total waste of time. The quality of the output epub was much lower than the free version.
+		output file: deleted.
+	</blockquote>
+</li>
 </ol>
 
 
